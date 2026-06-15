@@ -36,16 +36,16 @@ export function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-hairline bg-sidebar/95 backdrop-blur-md">
+    <header className="app-header sticky top-0 z-50 bg-background/88 backdrop-blur-xl">
       <div className="mx-auto grid h-14 max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
+
+        {/* Logo */}
         <Link to="/search/setup" className="min-w-0 justify-self-start">
           <Logo size="sm" variant="brand" productLabel className="items-start!" />
         </Link>
 
-        <nav
-          className="inline-flex items-center gap-0.5 rounded-lg bg-muted/50 p-1"
-          aria-label="Main navigation"
-        >
+        {/* Nav — flat, no pill container */}
+        <nav className="inline-flex items-stretch" aria-label="Main navigation">
           {NAV_ITEMS.map(({ to, label, icon: Icon, match }) => {
             const active = match(pathname);
             return (
@@ -53,20 +53,28 @@ export function AppHeader() {
                 key={to}
                 to={to}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150",
+                  "app-header-nav-item relative inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium transition-colors duration-150",
                   active
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
+                <Icon
+                  className={cn(
+                    "h-3.5 w-3.5 shrink-0 transition-colors duration-150",
+                    active ? "text-primary" : ""
+                  )}
+                  aria-hidden
+                />
                 <span className="hidden sm:inline">{label}</span>
+                {active && <span className="app-header-active-bar" aria-hidden />}
               </Link>
             );
           })}
         </nav>
 
+        {/* Right: notifications + user */}
         <div className="flex items-center justify-end gap-0.5 justify-self-end">
           <NotificationsButton />
           <UserMenu
@@ -97,14 +105,11 @@ function UserMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={cn(
-            "flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors",
-            "hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          )}
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-label="Account menu"
         >
           <Avatar src={null} alt={displayName} fallback={initials} size="sm" />
-          <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" aria-hidden />
+          <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground/70 sm:block" aria-hidden />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
@@ -163,7 +168,7 @@ function UnreadDot() {
 
   if (!count) return null;
   return (
-    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground ring-2 ring-sidebar">
+    <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground ring-2 ring-background">
       {count > 9 ? "9+" : count}
     </span>
   );

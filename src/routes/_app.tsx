@@ -22,7 +22,7 @@ function AppShell() {
     <div className="flex min-h-dvh flex-col bg-background">
       <AppHeader />
 
-      <main className="flex-1">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </main>
     </div>

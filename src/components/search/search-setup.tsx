@@ -5,6 +5,7 @@ import { ArrowRight, Check, Loader2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { WireframeGlobe } from "@/components/search/wireframe-globe";
 import type { SearchSetupParams } from "@/lib/search-schema";
 
 const SPORTS = [
@@ -82,143 +83,165 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
   }
 
   return (
-    <div className="search-setup relative flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="search-setup-glow pointer-events-none absolute inset-0" aria-hidden />
+    <div className="search-setup relative flex h-[calc(100dvh-3.5rem)] min-h-0 flex-1 overflow-hidden">
 
-      <div className="relative z-10 mx-auto flex w-full max-w-xl flex-col justify-center px-4 py-6 sm:px-6 sm:py-8">
-        <header className="mb-5 text-center">
-          <h1 className="font-display text-3xl tracking-wide text-foreground sm:text-4xl">
-            FIND YOUR FIGHTER
-          </h1>
-          <p className="mx-auto mt-1.5 max-w-sm text-xs text-muted-foreground sm:text-sm">
-            Pick sport and gender. Weight class is optional.
-          </p>
-        </header>
+      {/* Globe — discreet right-side rotating accent */}
+      <div className="search-setup-globe-accent pointer-events-none absolute z-0" aria-hidden>
+        <WireframeGlobe />
+      </div>
 
-        <div className="search-setup-card rounded-xl border border-border bg-card/80 p-4 shadow-[var(--shadow-elevated)] backdrop-blur-sm sm:p-5">
-          <section className="space-y-2">
-            <SectionLabel title="Sport" done={!!sport} />
-            <div className="grid grid-cols-3 gap-2">
-              {SPORTS.map(({ slug, label, mark }) => {
-                const active = sport === slug;
-                return (
-                  <button
-                    key={slug}
-                    type="button"
-                    onClick={() => selectSport(slug)}
-                    className={cn(
-                      "search-setup-option relative flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 transition-all duration-150",
-                      active
-                        ? "border-primary/50 bg-primary/10 ring-1 ring-primary/25"
-                        : "border-border bg-surface/40 hover:border-primary/25 hover:bg-surface"
-                    )}
-                  >
-                    <span
+      {/* Form panel */}
+      <div className="relative z-10 flex min-h-full w-full flex-col overflow-y-auto overscroll-contain">
+        <div className="flex min-h-full flex-col justify-center px-6 py-10 sm:px-10 sm:py-12 lg:max-w-[500px] lg:pl-14 xl:pl-16">
+
+          <header className="search-setup-header mb-10 lg:mb-12">
+            <p className="search-setup-eyebrow">Global Matchmaking</p>
+            <h1 className="search-setup-title mt-3">
+              FIND YOUR<br />
+              <span className="text-primary">FIGHTER</span>
+            </h1>
+            <p className="mt-4 max-w-[28ch] text-sm leading-relaxed text-muted-foreground">
+              Select sport and gender to search across the global fighter network.
+            </p>
+          </header>
+
+          <div className="search-setup-form space-y-6">
+
+            {/* Step 1: Sport */}
+            <section>
+              <SectionLabel title="Sport" done={!!sport} />
+              <div className="mt-3 grid grid-cols-3 gap-2.5">
+                {SPORTS.map(({ slug, label, mark }) => {
+                  const active = sport === slug;
+                  return (
+                    <button
+                      key={slug}
+                      type="button"
+                      onClick={() => selectSport(slug)}
                       className={cn(
-                        "font-display text-2xl leading-none tracking-wide",
-                        active ? "text-primary" : "text-foreground/80"
+                        "search-setup-option relative flex flex-col items-center gap-2 rounded-xl border py-4 transition-all duration-200",
+                        active
+                          ? "border-primary/50 bg-primary/10 ring-1 ring-primary/25 [box-shadow:0_0_32px_oklch(0.55_0.24_25/20%),inset_0_0_0_1px_oklch(0.55_0.24_25/12%)]"
+                          : "border-white/[0.07] bg-white/[0.04] hover:border-primary/25 hover:bg-primary/[0.07]"
                       )}
                     >
-                      {mark}
-                    </span>
-                    <span
+                      <span
+                        className={cn(
+                          "font-display text-3xl leading-none tracking-widest",
+                          active ? "text-primary" : "text-foreground/60"
+                        )}
+                      >
+                        {mark}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold uppercase tracking-[0.12em]",
+                          active ? "text-foreground" : "text-muted-foreground"
+                        )}
+                      >
+                        {label}
+                      </span>
+                      {active && (
+                        <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary [box-shadow:0_0_10px_oklch(0.55_0.24_25/55%)]">
+                          <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Step 2: Gender */}
+            <section
+              className={cn(
+                "overflow-hidden transition-all duration-300 ease-out",
+                sport ? "max-h-32 opacity-100" : "max-h-0 opacity-0"
+              )}
+            >
+              <SectionLabel title="Gender" done={!!gender} />
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                {GENDERS.map(({ value, label }) => {
+                  const active = gender === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => selectGender(value)}
                       className={cn(
-                        "text-[11px] font-medium",
-                        active ? "text-foreground" : "text-muted-foreground"
+                        "search-setup-option rounded-xl border py-3 text-sm font-semibold uppercase tracking-[0.1em] transition-all duration-200",
+                        active
+                          ? "border-primary/50 bg-primary/10 text-foreground ring-1 ring-primary/25 [box-shadow:0_0_32px_oklch(0.55_0.24_25/18%)]"
+                          : "border-white/[0.07] bg-white/[0.04] text-muted-foreground hover:border-primary/25 hover:text-foreground"
                       )}
                     >
                       {label}
-                    </span>
-                    {active && (
-                      <span className="absolute right-1.5 top-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        <Check className="h-2 w-2" strokeWidth={3} />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "overflow-hidden transition-all duration-250 ease-out",
-              sport ? "mt-4 max-h-28 opacity-100" : "max-h-0 opacity-0"
-            )}
-          >
-            <SectionLabel title="Gender" done={!!gender} />
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {GENDERS.map(({ value, label }) => {
-                const active = gender === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => selectGender(value)}
-                    className={cn(
-                      "search-setup-option rounded-lg border py-2 text-sm font-medium transition-all duration-150",
-                      active
-                        ? "border-primary/50 bg-primary/10 text-foreground ring-1 ring-primary/25"
-                        : "border-border bg-surface/40 text-muted-foreground hover:border-primary/25 hover:text-foreground"
-                    )}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section
-            className={cn(
-              "overflow-hidden transition-all duration-250 ease-out",
-              readyForWeights ? "mt-4 max-h-64 opacity-100" : "max-h-0 opacity-0"
-            )}
-          >
-            <SectionLabel title="Weight class" subtitle="Optional" done={weightClasses.length > 0} />
-
-            {weightsLoading ? (
-              <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading…
+                    </button>
+                  );
+                })}
               </div>
-            ) : classes.length === 0 ? (
-              <p className="py-3 text-center text-xs text-muted-foreground">
-                No weight classes for this selection.
-              </p>
-            ) : (
-              <div className="mt-2 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto scrollbar-thin pr-0.5">
-                <WeightChip
-                  active={weightClasses.length === 0}
-                  onClick={() => setWeightClasses([])}
-                  label="All"
-                />
-                {classes.map((wc) => (
+            </section>
+
+            {/* Step 3: Weight class */}
+            <section
+              className={cn(
+                "overflow-hidden transition-all duration-300 ease-out",
+                readyForWeights ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+              )}
+            >
+              <SectionLabel title="Weight class" subtitle="Optional" done={weightClasses.length > 0} />
+              {weightsLoading ? (
+                <div className="mt-3 flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Loading…
+                </div>
+              ) : classes.length === 0 ? (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  No weight classes for this selection.
+                </p>
+              ) : (
+                <div className="mt-3 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto scrollbar-thin pr-0.5">
                   <WeightChip
-                    key={wc.id}
-                    active={weightClasses.includes(wc.id)}
-                    onClick={() => toggleWeightClass(wc.id)}
-                    label={wc.name}
+                    active={weightClasses.length === 0}
+                    onClick={() => setWeightClasses([])}
+                    label="All"
                   />
-                ))}
-              </div>
-            )}
-          </section>
+                  {classes.map((wc) => (
+                    <WeightChip
+                      key={wc.id}
+                      active={weightClasses.includes(wc.id)}
+                      onClick={() => toggleWeightClass(wc.id)}
+                      label={wc.name}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
 
-          <div
-            className={cn(
-              "overflow-hidden transition-all duration-250 ease-out",
-              canSearch ? "mt-4 max-h-20 opacity-100" : "max-h-0 opacity-0"
-            )}
-          >
-            <Button className="search-setup-cta h-10 w-full" onClick={startSearch}>
-              <Search className="h-3.5 w-3.5" />
-              Search fighters
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
+            {/* Search CTA */}
+            <div
+              className={cn(
+                "overflow-hidden transition-all duration-300 ease-out",
+                canSearch ? "max-h-20 opacity-100" : "max-h-0 opacity-0"
+              )}
+            >
+              <Button
+                className="search-setup-cta h-12 w-full text-xs font-semibold uppercase tracking-widest"
+                onClick={startSearch}
+              >
+                <Search className="h-4 w-4" />
+                Search Fighters
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Globe caption — bottom right, desktop only */}
+      <p className="search-setup-globe-label hidden lg:block" aria-hidden>
+        Global fighter network
+      </p>
     </div>
   );
 }
@@ -234,13 +257,22 @@ function SectionLabel({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <span
+        className={cn(
+          "h-1.5 w-1.5 flex-shrink-0 rounded-full transition-colors duration-300",
+          done
+            ? "bg-primary [box-shadow:0_0_6px_oklch(0.55_0.24_25/70%)]"
+            : "bg-white/20"
+        )}
+      />
+      <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {title}
       </h2>
       {subtitle && (
-        <span className="text-[10px] text-muted-foreground/70">{subtitle}</span>
+        <span className="text-[9px] uppercase tracking-wider text-muted-foreground/50">
+          {subtitle}
+        </span>
       )}
-      {done && <Check className="h-3 w-3 text-primary" strokeWidth={2.5} />}
     </div>
   );
 }
@@ -259,10 +291,10 @@ function WeightChip({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors duration-150",
+        "rounded-full border px-3 py-1 text-[11px] font-medium transition-colors duration-150",
         active
-          ? "border-primary bg-primary/15 text-primary"
-          : "border-border bg-surface/30 text-muted-foreground hover:border-primary/20 hover:text-foreground"
+          ? "border-primary/60 bg-primary/15 text-primary"
+          : "border-white/[0.08] bg-white/[0.04] text-muted-foreground hover:border-primary/20 hover:text-foreground"
       )}
     >
       {label}

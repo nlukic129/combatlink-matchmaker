@@ -164,36 +164,203 @@
 
   .search-setup {
     background:
-      radial-gradient(ellipse 90% 70% at 50% -30%, oklch(0.55 0.24 25 / 14%), transparent),
-      radial-gradient(ellipse 50% 40% at 0% 80%, oklch(0.55 0.24 25 / 5%), transparent),
-      radial-gradient(ellipse 40% 35% at 100% 60%, oklch(0.55 0.24 25 / 4%), transparent),
+      radial-gradient(ellipse 50% 55% at 20% 30%, oklch(0.55 0.24 25 / 10%), transparent),
+      radial-gradient(ellipse 75% 80% at 85% 52%, oklch(0.55 0.24 25 / 18%), transparent),
       var(--background);
   }
 
-  .search-setup-glow::before {
-    content: "";
-    position: absolute;
-    top: 10%;
-    left: 50%;
-    width: min(420px, 80vw);
-    height: 200px;
-    transform: translateX(-50%);
-    background: radial-gradient(ellipse, oklch(0.55 0.24 25 / 6%), transparent 70%);
-    filter: blur(32px);
+  /* Globe — discreet right-side rotating accent */
+  .search-setup-globe-accent {
+    /* Mobile: small corner accent top-right */
+    right: -60px;
+    top: -40px;
+    width: 280px;
+    height: 280px;
+    opacity: 0.38;
   }
 
-  .search-setup-card {
-    animation: search-setup-in 0.45s ease-out both;
+  .search-setup-globe-accent .wireframe-globe {
+    opacity: 1;
+    mask-image: radial-gradient(
+      ellipse 85% 82% at 52% 50%,
+      oklch(0 0 0 / 100%) 30%,
+      oklch(0 0 0 / 45%) 58%,
+      transparent 100%
+    );
+    -webkit-mask-image: radial-gradient(
+      ellipse 85% 82% at 52% 50%,
+      oklch(0 0 0 / 100%) 30%,
+      oklch(0 0 0 / 45%) 58%,
+      transparent 100%
+    );
+  }
+
+  @media (min-width: 768px) {
+    .search-setup-globe-accent {
+      right: -100px;
+      top: -60px;
+      width: 420px;
+      height: 420px;
+      opacity: 0.52;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .search-setup-globe-accent {
+      right: -110px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 640px;
+      height: 640px;
+      opacity: 1;
+      filter: drop-shadow(0 0 32px oklch(0.55 0.24 25 / 22%));
+    }
+
+    .search-setup-globe-accent .wireframe-globe {
+      mask-image: radial-gradient(
+        ellipse 96% 92% at 56% 50%,
+        oklch(0 0 0 / 100%) 46%,
+        oklch(0 0 0 / 62%) 67%,
+        transparent 100%
+      );
+      -webkit-mask-image: radial-gradient(
+        ellipse 96% 92% at 56% 50%,
+        oklch(0 0 0 / 100%) 46%,
+        oklch(0 0 0 / 62%) 67%,
+        transparent 100%
+      );
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .search-setup-globe-accent {
+      right: -80px;
+      width: 730px;
+      height: 730px;
+      filter: drop-shadow(0 0 40px oklch(0.55 0.24 25 / 24%));
+    }
+  }
+
+  .wireframe-globe {
+    opacity: 0.88;
+    mask-image: radial-gradient(
+      ellipse 88% 78% at 52% 48%,
+      oklch(0 0 0 / 100%) 36%,
+      oklch(0 0 0 / 72%) 62%,
+      transparent 100%
+    );
+    -webkit-mask-image: radial-gradient(
+      ellipse 88% 78% at 52% 48%,
+      oklch(0 0 0 / 100%) 36%,
+      oklch(0 0 0 / 72%) 62%,
+      transparent 100%
+    );
+  }
+
+  @media (min-width: 1024px) {
+    .wireframe-globe {
+      opacity: 0.95;
+      mask-image: radial-gradient(
+        ellipse 92% 82% at 50% 46%,
+        oklch(0 0 0 / 100%) 42%,
+        oklch(0 0 0 / 80%) 68%,
+        transparent 100%
+      );
+      -webkit-mask-image: radial-gradient(
+        ellipse 92% 82% at 50% 46%,
+        oklch(0 0 0 / 100%) 42%,
+        oklch(0 0 0 / 80%) 68%,
+        transparent 100%
+      );
+    }
+  }
+
+  /* Overlay — reduced to let globe show through behind the form */
+  .search-setup-overlay {
+    background: oklch(0.09 0.012 270 / 36%);
+  }
+
+  /* Hero title */
+  .search-setup-title {
+    font-family: var(--font-display);
+    font-size: 3.75rem;
+    line-height: 0.9;
+    letter-spacing: 0.02em;
+    color: oklch(0.97 0.004 270);
+  }
+
+  @media (min-width: 640px) {
+    .search-setup-title { font-size: 5rem; }
+  }
+
+  @media (min-width: 1024px) {
+    .search-setup-title { font-size: 6rem; }
+  }
+
+  @media (min-width: 1280px) {
+    .search-setup-title { font-size: 7rem; }
+  }
+
+  /* Eyebrow label above title */
+  .search-setup-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: oklch(0.55 0.24 25);
+  }
+
+  .search-setup-eyebrow::before {
+    content: "";
+    display: block;
+    width: 20px;
+    height: 1.5px;
+    background: oklch(0.55 0.24 25);
+    border-radius: 1px;
+    flex-shrink: 0;
+  }
+
+  /* Globe caption — bottom right */
+  .search-setup-globe-label {
+    position: absolute;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 10;
+    font-size: 0.5625rem;
+    font-weight: 500;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: oklch(0.58 0.014 270 / 40%);
+    pointer-events: none;
+  }
+
+  @media (min-width: 1024px) {
+    .search-setup-globe-label {
+      bottom: 2rem;
+      right: 2.5rem;
+    }
+  }
+
+  /* Staggered entrance animations */
+  .search-setup-header {
+    animation: search-setup-in 0.5s ease-out 0.05s both;
+  }
+
+  .search-setup-form {
+    animation: search-setup-in 0.5s ease-out 0.22s both;
   }
 
   .search-setup-option:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
   }
 
   .search-setup-cta {
     box-shadow:
-      0 4px 20px oklch(0.55 0.24 25 / 35%),
-      0 0 0 1px oklch(0.55 0.24 25 / 20%);
+      0 4px 24px oklch(0.55 0.24 25 / 40%),
+      0 0 0 1px oklch(0.55 0.24 25 / 25%);
   }
 
   @keyframes search-setup-in {
@@ -205,6 +372,56 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* ── App Header ── */
+  .app-header {
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 6%),
+      0 8px 28px oklch(0.55 0.24 25 / 5%);
+  }
+
+  .app-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    inset-inline: 0;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      oklch(0.55 0.24 25 / 50%) 28%,
+      oklch(0.55 0.24 25 / 65%) 50%,
+      oklch(0.55 0.24 25 / 50%) 72%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Thin vertical divider between nav siblings */
+  .app-header-nav-item + .app-header-nav-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 12px;
+    background: oklch(1 0 0 / 10%);
+  }
+
+  /* Active page: red underline with glow */
+  .app-header-active-bar {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 2px;
+    background: oklch(0.55 0.24 25);
+    border-radius: 1px;
+    box-shadow: 0 0 10px oklch(0.55 0.24 25 / 65%);
   }
 
   .glass-panel {
