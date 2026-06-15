@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { X, Dumbbell } from "lucide-react";
+import { X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import type { SearchFilters } from "@/lib/search-schema";
 
 const SPORTS = [
@@ -73,35 +72,50 @@ export function MandatoryFilters({ filters }: { filters: SearchFilters }) {
   }
 
   return (
-    <div className="border-b border-border bg-sidebar/80">
-      <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          <Dumbbell className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Sport</span>
+    <div className="border-b border-white/[0.06] bg-sidebar/80 backdrop-blur-sm">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6">
+
+        {/* Row 1: Sport + Gender */}
+        <div className="flex flex-wrap items-center gap-2.5 py-2.5">
+          <FilterSectionLabel title="Sport" done={!!filters.sport} />
+
+          <div className="flex items-center gap-1.5">
+            {SPORTS.map(({ slug, label }) => (
+              <FilterPill
+                key={slug}
+                active={filters.sport === slug}
+                onClick={() => setSport(slug)}
+              >
+                {label}
+              </FilterPill>
+            ))}
+          </div>
+
+          {filters.sport && (
+            <>
+              <div className="h-4 w-px bg-white/[0.08]" />
+              <div className="flex items-center gap-1.5">
+                {GENDERS.map(({ value, label }) => (
+                  <FilterPill
+                    key={value}
+                    active={filters.gender === value}
+                    onClick={() => setGender(value)}
+                  >
+                    {label}
+                  </FilterPill>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
-        <SegmentedControl
-          options={SPORTS.map((s) => ({ value: s.slug, label: s.label }))}
-          value={filters.sport ?? ""}
-          onChange={(v) => setSport(v)}
-          size="sm"
-        />
-
-        {filters.sport && (
-          <>
-            <div className="hidden h-5 w-px bg-border sm:block" />
-            <SegmentedControl
-              options={GENDERS.map((g) => ({ value: g.value, label: g.label }))}
-              value={filters.gender ?? ""}
-              onChange={(v) => setGender(v as "male" | "female")}
-              size="sm"
-            />
-          </>
-        )}
-
+        {/* Row 2: Weight classes */}
         {filters.sport && filters.gender && (
-          <>
-            <div className="hidden h-5 w-px bg-border sm:block" />
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.04] py-2">
+            <FilterSectionLabel
+              title="Weight"
+              done={(filters.weightClasses ?? []).length > 0}
+            />
             <WeightClassChips
               sport={filters.sport}
               gender={filters.gender}
@@ -109,10 +123,53 @@ export function MandatoryFilters({ filters }: { filters: SearchFilters }) {
               onToggle={toggleWeightClass}
               onClearAll={clearWeightClasses}
             />
-          </>
+          </div>
         )}
       </div>
     </div>
+  );
+}
+
+function FilterSectionLabel({ title, done }: { title: string; done: boolean }) {
+  return (
+    <div className="flex flex-shrink-0 items-center gap-1.5">
+      <span
+        className={cn(
+          "h-1.5 w-1.5 flex-shrink-0 rounded-full transition-colors duration-300",
+          done
+            ? "bg-primary [box-shadow:0_0_6px_oklch(0.55_0.24_25/70%)]"
+            : "bg-white/20"
+        )}
+      />
+      <span className="hidden text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:inline">
+        {title}
+      </span>
+    </div>
+  );
+}
+
+function FilterPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] transition-all duration-200",
+        active
+          ? "border-primary/50 bg-primary/10 text-primary [box-shadow:0_0_14px_oklch(0.55_0.24_25/30%)]"
+          : "border-white/[0.07] bg-white/[0.03] text-muted-foreground hover:border-primary/25 hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -149,23 +206,23 @@ function WeightClassChips({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Chip active={allSelected} onClick={onClearAll}>
+      <WeightChip active={allSelected} onClick={onClearAll}>
         All
-      </Chip>
+      </WeightChip>
       {classes.map((wc) => {
         const active = selected.includes(wc.id);
         return (
-          <Chip key={wc.id} active={active} onClick={() => onToggle(wc.id)}>
+          <WeightChip key={wc.id} active={active} onClick={() => onToggle(wc.id)}>
             {wc.name}
             {active && <X className="h-3 w-3 opacity-70" />}
-          </Chip>
+          </WeightChip>
         );
       })}
     </div>
   );
 }
 
-function Chip({
+function WeightChip({
   active,
   onClick,
   children,
@@ -179,10 +236,10 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition-all duration-150",
+        "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium transition-all duration-150",
         active
-          ? "bg-primary/15 text-primary ring-1 ring-primary/40"
-          : "bg-muted/60 text-muted-foreground hover:bg-accent hover:text-foreground"
+          ? "border-primary/60 bg-primary/15 text-primary"
+          : "border-white/[0.08] bg-white/[0.04] text-muted-foreground hover:border-primary/20 hover:text-foreground"
       )}
     >
       {children}

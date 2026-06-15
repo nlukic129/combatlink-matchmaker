@@ -106,10 +106,10 @@ export function LocationRegionFilters({ filters }: { filters: SearchFilters }) {
                 type="button"
                 onClick={() => selectContinent(continent.id)}
                 className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                  "rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all duration-150",
                   active
-                    ? "border-primary bg-primary/15 text-primary"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                    ? "border-primary/60 bg-primary/15 text-primary"
+                    : "border-white/[0.08] bg-white/[0.04] text-muted-foreground hover:border-primary/20 hover:text-foreground"
                 )}
               >
                 {continent.label}
@@ -125,9 +125,9 @@ export function LocationRegionFilters({ filters }: { filters: SearchFilters }) {
           type="button"
           onClick={() => setOpen((v) => !v)}
           className={cn(
-            "flex w-full items-center justify-between rounded-lg border border-input bg-card px-3 py-2 text-left text-sm transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            summary ? "text-foreground" : "text-muted-foreground"
+            "flex w-full items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-left text-sm transition-colors",
+            "focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/20",
+            summary ? "text-foreground" : "text-muted-foreground/60"
           )}
         >
           <span className="truncate">{summary ?? "Select countries…"}</span>
@@ -135,15 +135,15 @@ export function LocationRegionFilters({ filters }: { filters: SearchFilters }) {
         </button>
 
         {open && (
-          <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-elevated)]">
-            <div className="border-b border-border p-2">
+          <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border border-white/[0.08] bg-sidebar/95 shadow-[var(--shadow-elevated)] backdrop-blur-sm">
+            <div className="border-b border-white/[0.06] p-2">
               <input
                 type="text"
                 value={countryQuery}
                 onChange={(e) => setCountryQuery(e.target.value)}
                 placeholder="Search countries…"
                 autoComplete="off"
-                className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/20"
               />
             </div>
             <ul className="max-h-52 overflow-y-auto scrollbar-thin py-1">
@@ -159,7 +159,7 @@ export function LocationRegionFilters({ filters }: { filters: SearchFilters }) {
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => toggleCountry(country)}
                         className={cn(
-                          "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                          "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.04]",
                           checked && "bg-primary/5 text-foreground"
                         )}
                       >
@@ -199,13 +199,13 @@ export function LocationRegionFilters({ filters }: { filters: SearchFilters }) {
           {filters.countries.map((country) => (
             <span
               key={country}
-              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary"
+              className="inline-flex items-center gap-1 rounded-full border border-primary/60 bg-primary/15 px-2.5 py-1 text-[11px] font-medium text-primary"
             >
               {country}
               <button
                 type="button"
                 onClick={() => toggleCountry(country)}
-                className="rounded-full p-0.5 hover:bg-primary/20"
+                className="rounded-full p-0.5 opacity-70 hover:opacity-100 transition-opacity"
                 aria-label={`Remove ${country}`}
               >
                 <X className="h-3 w-3" />
@@ -213,16 +213,6 @@ export function LocationRegionFilters({ filters }: { filters: SearchFilters }) {
             </span>
           ))}
         </div>
-      )}
-
-      {activeCountries && (
-        <button
-          type="button"
-          onClick={clearRegions}
-          className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          Clear region filter
-        </button>
       )}
     </div>
   );

@@ -667,304 +667,242 @@
     100% { background-position: -200% 0; }
   }
 
-  /* ── Fighter map markers ── */
-  .fighter-map-container .mapboxgl-canvas {
+  /* ══════════════════════════════════════════════════════
+     Fighter map — fm-* design system
+  ══════════════════════════════════════════════════════ */
+
+  .fm-map-root .mapboxgl-canvas {
     outline: none;
   }
 
-  .fighter-marker {
+  /* ── Individual fighter pin ──────────────────────────── */
+  .fm-pin {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     cursor: pointer;
-    /* Mapbox sets transform on this element — do not override */
+    transition: transform 0.15s ease;
+    filter: drop-shadow(0 4px 12px oklch(0 0 0 / 55%));
   }
 
-  .fighter-marker[data-near="true"] {
-    opacity: 0.65;
+  .fm-pin:hover {
+    transform: translateY(-4px) scale(1.08);
+    filter: drop-shadow(0 6px 18px oklch(0 0 0 / 60%));
   }
 
-  .fighter-marker-pin {
-    position: relative;
-    width: 40px;
-    height: 40px;
+  /* Availability colors as CSS vars */
+  .fm-pin[data-status="available"] {
+    --pin-color: #4ade80;
+    --pin-glow: oklch(0.8 0.18 145 / 28%);
+  }
+  .fm-pin[data-status="in_camp"] {
+    --pin-color: #f59e0b;
+    --pin-glow: oklch(0.82 0.16 82 / 22%);
+  }
+  .fm-pin[data-status="unavailable"],
+  .fm-pin[data-status="near"] {
+    --pin-color: oklch(0.44 0.01 270);
+    --pin-glow: transparent;
+  }
+  .fm-pin[data-status="near"] {
+    --pin-color: oklch(0.72 0.13 82);
+    opacity: 0.75;
+  }
+
+  /* Pulse ring — available only */
+  .fm-pin-pulse {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
-    border: 2.5px solid var(--pin-color, #71717a);
-    background: oklch(0.125 0.014 270);
-    box-shadow:
-      0 2px 8px oklch(0 0 0 / 45%),
-      0 0 0 2px oklch(1 0 0 / 10%);
+    border: 2px solid var(--pin-color, #4ade80);
+    animation: fm-pulse 2.8s ease-out infinite;
+    pointer-events: none;
+    transform: translate(-50%, calc(-50% - 2px));
+    z-index: -1;
+  }
+
+  @keyframes fm-pulse {
+    0%   { opacity: 0.7; transform: translate(-50%, calc(-50% - 2px)) scale(1); }
+    80%  { opacity: 0; }
+    100% { opacity: 0; transform: translate(-50%, calc(-50% - 2px)) scale(2.6); }
+  }
+
+  /* Pin disk */
+  .fm-pin-disk {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 2.5px solid var(--pin-color, oklch(0.44 0.01 270));
+    background: oklch(0.105 0.013 270);
     overflow: hidden;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-  }
-
-  .fighter-marker:hover .fighter-marker-pin {
-    transform: scale(1.1) translateY(-3px);
     box-shadow:
-      0 6px 16px oklch(0 0 0 / 50%),
-      0 0 0 3px oklch(1 0 0 / 12%);
+      0 2px 10px oklch(0 0 0 / 50%),
+      0 0 0 1.5px oklch(0 0 0 / 35%),
+      0 0 12px var(--pin-glow, transparent);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
   }
 
-  .fighter-marker-photo {
+  .fm-pin:hover .fm-pin-disk {
+    box-shadow:
+      0 6px 20px oklch(0 0 0 / 55%),
+      0 0 0 2px oklch(1 0 0 / 12%),
+      0 0 20px var(--pin-glow, transparent);
+  }
+
+  .fm-pin-photo {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center top;
     display: block;
     pointer-events: none;
   }
 
-  .fighter-marker-initials {
+  .fm-pin-initials {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 100%;
     height: 100%;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 600;
-    color: oklch(0.7 0.01 270);
+    color: oklch(0.62 0.01 270);
     pointer-events: none;
   }
 
-  .fighter-marker-status {
+  .fm-pin-dot {
     position: absolute;
-    bottom: 1px;
-    right: 1px;
-    width: 10px;
-    height: 10px;
+    bottom: 2px;
+    right: 2px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
-    border: 2px solid oklch(0.125 0.014 270);
+    background: var(--pin-color, oklch(0.44 0.01 270));
+    border: 1.5px solid oklch(0.105 0.013 270);
     pointer-events: none;
   }
 
-  .fighter-marker-tail {
+  .fm-pin-tip {
     width: 0;
     height: 0;
-    border-left: 7px solid transparent;
-    border-right: 7px solid transparent;
-    border-top: 9px solid var(--pin-color, #71717a);
-    margin-top: -2px;
-    filter: drop-shadow(0 2px 3px oklch(0 0 0 / 35%));
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--pin-color, oklch(0.44 0.01 270));
+    margin-top: -1.5px;
+    filter: drop-shadow(0 2px 3px oklch(0 0 0 / 45%));
     transition: transform 0.15s ease;
     pointer-events: none;
   }
 
-  .fighter-marker:hover .fighter-marker-tail {
-    transform: translateY(-3px);
+  .fm-pin:hover .fm-pin-tip {
+    transform: translateY(-4px);
   }
 
-  /* Popup */
-  .fighter-map-popup .mapboxgl-popup-content {
-    background: oklch(0.125 0.014 270);
-    border: 1px solid oklch(1 0 0 / 10%);
-    border-radius: 10px;
-    padding: 12px 14px;
-    box-shadow: var(--shadow-elevated);
-  }
-
-  .fighter-map-popup .mapboxgl-popup-tip {
-    border-top-color: oklch(0.125 0.014 270);
-  }
-
-  .fighter-map-popup-body {
-    font-family: var(--font-sans);
-  }
-
-  .fighter-map-popup-name {
-    font-weight: 600;
-    font-size: 13px;
-    margin: 0 0 2px;
-    color: oklch(0.97 0.004 270);
-  }
-
-  .fighter-map-popup-nick {
-    font-size: 11px;
-    color: oklch(0.58 0.014 270);
-    margin: 0 0 4px;
-  }
-
-  .fighter-map-popup-city {
-    font-size: 11px;
-    color: oklch(0.58 0.014 270);
-    margin: 0;
-  }
-
-  .fighter-map-popup-near {
-    font-size: 10px;
-    color: oklch(0.82 0.16 80);
-    margin: 6px 0 0;
-    font-weight: 500;
-  }
-
-  /* Cluster bubbles sit below HTML avatar pins */
-  .fighter-map-container .mapboxgl-marker {
+  /* z-index for mapbox markers */
+  .fm-map-root .mapboxgl-marker {
     z-index: 1;
   }
 
-  /* Selected region panel + map highlight layers */
-  .fighter-map-region-panel {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    z-index: 5;
-    max-width: min(280px, calc(100% - 24px));
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid oklch(0.55 0.22 25 / 45%);
-    background: oklch(0.12 0.014 270 / 92%);
-    backdrop-filter: blur(10px);
-    box-shadow:
-      0 8px 24px oklch(0 0 0 / 45%),
-      inset 0 0 0 1px oklch(1 0 0 / 6%);
-    pointer-events: none;
+  /* ── Cluster markers ─────────────────────────────────── */
+  .fm-cluster {
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    filter: drop-shadow(0 4px 14px oklch(0 0 0 / 55%));
   }
 
-  .fighter-map-region-panel-header {
+  .fm-cluster:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 6px 20px oklch(0.55 0.24 25 / 45%));
+  }
+
+  .fm-cluster-disk {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-
-  .fighter-map-region-dot {
-    width: 10px;
-    height: 10px;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    background: #e8001d;
-    box-shadow: 0 0 0 3px oklch(0.55 0.22 25 / 35%), 0 0 12px oklch(0.55 0.22 25 / 55%);
-    flex-shrink: 0;
+    background: radial-gradient(circle at 38% 38%, oklch(0.64 0.26 25), oklch(0.46 0.22 25));
+    border: 2px solid oklch(1 0 0 / 22%);
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 20%) inset,
+      0 4px 18px oklch(0.55 0.24 25 / 35%),
+      0 0 0 1px oklch(0 0 0 / 30%);
+    transition: box-shadow 0.15s ease, background 0.15s ease;
   }
 
-  .fighter-map-region-title {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: oklch(0.72 0.18 25);
+  .fm-cluster[data-tier="md"] .fm-cluster-disk {
+    width: 48px;
+    height: 48px;
   }
 
-  .fighter-map-region-label {
-    margin: 0;
+  .fm-cluster[data-tier="lg"] .fm-cluster-disk {
+    width: 56px;
+    height: 56px;
+  }
+
+  .fm-cluster:hover .fm-cluster-disk {
+    background: radial-gradient(circle at 38% 38%, oklch(0.68 0.27 25), oklch(0.50 0.24 25));
+    box-shadow:
+      0 1px 0 oklch(1 0 0 / 25%) inset,
+      0 8px 28px oklch(0.55 0.24 25 / 55%),
+      0 0 0 1px oklch(0 0 0 / 30%);
+  }
+
+  .fm-cluster-count {
     font-size: 14px;
-    font-weight: 600;
-    line-height: 1.35;
-    color: oklch(0.97 0.004 270);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    color: oklch(0.99 0.003 270);
+    pointer-events: none;
+    line-height: 1;
   }
 
-  .fighter-map-region-count {
-    margin: 4px 0 0;
-    font-size: 11px;
-    color: oklch(0.58 0.014 270);
-  }
+  .fm-cluster[data-tier="md"] .fm-cluster-count { font-size: 15px; }
+  .fm-cluster[data-tier="lg"] .fm-cluster-count { font-size: 16px; }
 
-  /* ── Cluster / stack markers ── */
-  .fighter-cluster-marker {
-    position: relative;
+  /* ── Stack markers (same city) ───────────────────────── */
+  .fm-stack {
     display: flex;
     flex-direction: column;
     align-items: center;
     cursor: pointer;
-    filter: drop-shadow(0 3px 10px oklch(0 0 0 / 50%));
-    transition: filter 0.15s ease;
-  }
-
-  .fighter-cluster-marker:hover {
-    filter: drop-shadow(0 5px 16px oklch(0.55 0.24 25 / 45%));
-  }
-
-  .fighter-cluster-badge {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 34px;
-    height: 34px;
-    padding: 0 11px;
-    border-radius: 9999px;
-    background: linear-gradient(
-      160deg,
-      oklch(0.62 0.25 25) 0%,
-      oklch(0.50 0.23 25) 100%
-    );
-    border: 2px solid oklch(1 0 0 / 22%);
-    box-shadow:
-      0 1px 0 oklch(1 0 0 / 18%) inset,
-      0 0 0 1px oklch(0 0 0 / 20%);
-  }
-
-  .fighter-cluster-badge--round {
-    width: 34px;
-    padding: 0;
-    border-radius: 50%;
-  }
-
-  .fighter-cluster-badge--md {
-    min-width: 38px;
-    height: 38px;
-    padding: 0 12px;
-  }
-
-  .fighter-cluster-badge--md.fighter-cluster-badge--round {
-    width: 38px;
-  }
-
-  .fighter-cluster-badge--lg {
-    min-width: 42px;
-    height: 42px;
-    padding: 0 13px;
-  }
-
-  .fighter-cluster-badge--lg.fighter-cluster-badge--round {
-    width: 42px;
-  }
-
-  .fighter-cluster-count {
-    font-size: 13px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
-    color: oklch(0.99 0.002 270);
-    letter-spacing: -0.02em;
-    pointer-events: none;
-  }
-
-  .fighter-cluster-badge--md .fighter-cluster-count {
-    font-size: 14px;
-  }
-
-  .fighter-cluster-badge--lg .fighter-cluster-count {
-    font-size: 15px;
-  }
-
-  .fighter-cluster-marker:hover .fighter-cluster-badge {
-    background: linear-gradient(
-      160deg,
-      oklch(0.66 0.26 25) 0%,
-      oklch(0.54 0.24 25) 100%
-    );
-    border-color: oklch(1 0 0 / 30%);
-  }
-
-  /* Same-city stack pill */
-  .fighter-stack-marker {
     filter: drop-shadow(0 3px 10px oklch(0 0 0 / 55%));
+    transition: filter 0.15s ease, transform 0.15s ease;
   }
 
-  .fighter-stack-badge {
+  .fm-stack:hover {
+    transform: translateY(-2px);
+    filter: drop-shadow(0 5px 16px oklch(0.55 0.24 25 / 40%));
+  }
+
+  .fm-stack-pill {
     display: flex;
     align-items: center;
     gap: 7px;
-    max-width: 140px;
-    height: 32px;
-    padding: 0 12px 0 10px;
+    max-width: 150px;
+    height: 30px;
+    padding: 0 10px 0 8px;
     border-radius: 9999px;
-    background: oklch(0.12 0.012 270 / 94%);
-    border: 1.5px solid oklch(1 0 0 / 12%);
-    box-shadow:
-      0 1px 0 oklch(1 0 0 / 8%) inset,
-      0 0 0 1px oklch(0 0 0 / 25%);
-    backdrop-filter: blur(8px);
+    background: oklch(0.115 0.013 270 / 96%);
+    border: 1.5px solid oklch(1 0 0 / 13%);
+    box-shadow: 0 1px 0 oklch(1 0 0 / 8%) inset, 0 0 0 1px oklch(0 0 0 / 28%);
+    backdrop-filter: blur(10px);
+    transition: border-color 0.15s ease, background 0.15s ease;
   }
 
-  .fighter-stack-count {
+  .fm-stack:hover .fm-stack-pill {
+    border-color: oklch(0.55 0.24 25 / 45%);
+    background: oklch(0.14 0.016 270 / 97%);
+  }
+
+  .fm-stack-badge {
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -981,44 +919,35 @@
     line-height: 1;
   }
 
-  .fighter-stack-divider {
+  .fm-stack-sep {
     width: 1px;
-    height: 14px;
+    height: 13px;
     background: oklch(1 0 0 / 10%);
     flex-shrink: 0;
   }
 
-  .fighter-stack-city {
+  .fm-stack-city {
     font-size: 11px;
     font-weight: 500;
-    color: oklch(0.88 0.006 270);
+    color: oklch(0.88 0.007 270);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
   }
 
-  .fighter-stack-pointer {
+  .fm-stack-tip {
     width: 0;
     height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 7px solid oklch(0.12 0.012 270 / 94%);
+    border-left: 5.5px solid transparent;
+    border-right: 5.5px solid transparent;
+    border-top: 6px solid oklch(0.115 0.013 270 / 96%);
     margin-top: -1px;
     filter: drop-shadow(0 2px 2px oklch(0 0 0 / 30%));
   }
 
-  .fighter-stack-marker:hover .fighter-stack-badge {
-    border-color: oklch(0.55 0.24 25 / 40%);
-    background: oklch(0.14 0.014 270 / 96%);
-  }
-
-  .fighter-cluster-marker:hover .fighter-stack-count {
-    background: linear-gradient(160deg, oklch(0.66 0.26 25), oklch(0.54 0.24 25));
-  }
-
-  /* ── Hover orbit preview ── */
-  .fighter-orbit-overlay {
+  /* ── Orbit overlay ───────────────────────────────────── */
+  .fm-orbit-overlay {
     position: absolute;
     left: 0;
     top: 0;
@@ -1027,48 +956,36 @@
     height: 0;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.18s ease;
+    transition: opacity 0.2s ease;
   }
 
-  .fighter-orbit-overlay--visible {
+  .fm-orbit-overlay--visible {
     opacity: 1;
   }
 
-  .fighter-orbit-item-wrap {
+  .fm-orbit-ring {
+    --orbit-r: 148px;
     position: absolute;
     left: 50%;
     top: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    transform: translate(calc(-50% + var(--ox, 0px)), calc(-50% + var(--oy, 0px)));
-    animation: orbit-item-in 0.3s ease-out backwards;
-    pointer-events: auto;
-  }
-
-  .fighter-orbit-ring {
-    --orbit-r: 144px;
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: calc(var(--orbit-r, 144px));
-    height: calc(var(--orbit-r, 144px));
-    margin-left: calc(var(--orbit-r, 144px) / -2);
-    margin-top: calc(var(--orbit-r, 144px) / -2);
+    width: var(--orbit-r);
+    height: var(--orbit-r);
+    margin-left: calc(var(--orbit-r) / -2);
+    margin-top: calc(var(--orbit-r) / -2);
     border-radius: 50%;
-    border: 1.5px dashed oklch(1 0 0 / 18%);
-    background: radial-gradient(circle, oklch(0.55 0.24 25 / 8%) 0%, transparent 65%);
+    border: 1.5px solid oklch(0.55 0.24 25 / 22%);
+    background: radial-gradient(circle, oklch(0.55 0.24 25 / 6%) 0%, transparent 70%);
     pointer-events: none;
-    animation: orbit-ring-in 0.25s ease-out;
+    animation: fm-orbit-ring-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: inset 0 0 30px oklch(0.55 0.24 25 / 5%);
   }
 
-  @keyframes orbit-ring-in {
-    from { transform: scale(0.6); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+  @keyframes fm-orbit-ring-in {
+    from { transform: scale(0.5); opacity: 0; }
+    to   { transform: scale(1);   opacity: 1; }
   }
 
-  .fighter-orbit-center {
+  .fm-orbit-center {
     position: absolute;
     left: 50%;
     top: 50%;
@@ -1077,107 +994,413 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-width: 44px;
-    min-height: 44px;
-    padding: 6px 8px;
+    min-width: 50px;
+    min-height: 50px;
+    padding: 6px 10px;
     border-radius: 50%;
-    background: oklch(0.11 0.012 270 / 95%);
-    border: 2px solid oklch(0.55 0.24 25 / 60%);
-    box-shadow: var(--shadow-elevated);
+    background: oklch(0.10 0.012 270 / 96%);
+    border: 2px solid oklch(0.55 0.24 25 / 55%);
+    box-shadow:
+      0 0 0 4px oklch(0.55 0.24 25 / 10%),
+      0 8px 24px oklch(0 0 0 / 50%);
     pointer-events: none;
   }
 
-  .fighter-orbit-center-count {
-    font-size: 16px;
+  .fm-orbit-nucleus-count {
+    font-size: 17px;
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
     color: oklch(0.97 0.004 270);
     line-height: 1;
   }
 
-  .fighter-orbit-item-wrap {
+  .fm-orbit-nucleus-label {
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: oklch(0.55 0.014 270);
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  .fm-orbit-item-wrap {
     position: absolute;
     left: 50%;
     top: 50%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    gap: 4px;
     transform: translate(calc(-50% + var(--ox, 0px)), calc(-50% + var(--oy, 0px)));
-    animation: orbit-item-in 0.3s ease-out backwards;
+    animation: fm-orbit-item-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
     pointer-events: auto;
   }
 
-  .fighter-orbit-more {
-    position: absolute;
-    left: 50%;
-    top: calc(50% + 52px);
-    transform: translateX(-50%);
-    font-size: 10px;
-    font-weight: 600;
-    color: oklch(0.58 0.014 270);
-    background: oklch(0.11 0.012 270 / 90%);
-    padding: 3px 8px;
-    border-radius: 9999px;
-    border: 1px solid oklch(1 0 0 / 10%);
-    pointer-events: none;
-    white-space: nowrap;
+  @keyframes fm-orbit-item-in {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+    to   { opacity: 1; transform: translate(calc(-50% + var(--ox, 0px)), calc(-50% + var(--oy, 0px))); }
   }
 
-  .fighter-orbit-item {
+  .fm-orbit-chip {
     position: relative;
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    border: 2px solid var(--pin-color, oklch(0.55 0.24 25));
-    background: oklch(0.125 0.014 270);
-    box-shadow: 0 2px 10px oklch(0 0 0 / 40%);
+    border: 2.5px solid var(--chip-color, oklch(0.55 0.24 25));
+    background: oklch(0.12 0.013 270);
+    box-shadow: 0 3px 12px oklch(0 0 0 / 45%);
     cursor: pointer;
     overflow: hidden;
     font-size: 13px;
     font-weight: 600;
-    color: oklch(0.7 0.01 270);
-    transition: box-shadow 0.15s ease;
+    color: oklch(0.65 0.01 270);
+    transition: box-shadow 0.15s ease, transform 0.15s ease;
     padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .fighter-orbit-item-wrap:hover {
-    z-index: 2;
+  .fm-orbit-item-wrap:hover {
+    z-index: 5;
   }
 
-  .fighter-orbit-item-wrap:hover .fighter-orbit-item {
-    box-shadow: 0 4px 16px oklch(0 0 0 / 50%), 0 0 0 3px oklch(0.55 0.24 25 / 40%);
-    filter: brightness(1.1);
+  .fm-orbit-item-wrap:hover .fm-orbit-chip {
+    transform: scale(1.12);
+    box-shadow:
+      0 6px 18px oklch(0 0 0 / 55%),
+      0 0 0 3px var(--chip-color, oklch(0.55 0.24 25));
   }
 
-  @keyframes orbit-item-in {
-    from { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
-    to { opacity: 1; transform: translate(calc(-50% + var(--ox, 0px)), calc(-50% + var(--oy, 0px))); }
+  .fm-orbit-chip[data-near="true"] {
+    opacity: 0.72;
+    border-color: oklch(0.72 0.13 82);
   }
 
-  .fighter-orbit-item[data-near="true"] {
-    opacity: 0.75;
-  }
-
-  .fighter-orbit-photo {
+  .fm-orbit-photo {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center top;
     display: block;
   }
 
-  .fighter-orbit-more {
+  .fm-orbit-name {
+    font-size: 9.5px;
+    font-weight: 600;
+    color: oklch(0.82 0.006 270);
+    white-space: nowrap;
+    max-width: 52px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    text-align: center;
+    text-shadow: 0 1px 4px oklch(0 0 0 / 80%);
+  }
+
+  .fm-orbit-more {
     position: absolute;
     left: 50%;
-    top: calc(50% + 52px);
+    bottom: calc(50% - var(--orbit-r, 148px) / 2 - 6px);
     transform: translateX(-50%);
     font-size: 10px;
     font-weight: 600;
-    color: oklch(0.58 0.014 270);
-    background: oklch(0.11 0.012 270 / 90%);
+    color: oklch(0.62 0.014 270);
+    background: oklch(0.11 0.012 270 / 92%);
     padding: 3px 8px;
     border-radius: 9999px;
     border: 1px solid oklch(1 0 0 / 10%);
     pointer-events: none;
     white-space: nowrap;
+    backdrop-filter: blur(8px);
+  }
+
+  /* ── Fighter popup ───────────────────────────────────── */
+  .fm-popup .mapboxgl-popup-content {
+    background: oklch(0.115 0.014 270 / 97%);
+    border: 1px solid oklch(1 0 0 / 11%);
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow:
+      0 12px 32px oklch(0 0 0 / 55%),
+      inset 0 0 0 1px oklch(1 0 0 / 6%);
+    backdrop-filter: blur(12px);
+  }
+
+  .fm-popup .mapboxgl-popup-tip {
+    border-top-color: oklch(0.115 0.014 270 / 97%);
+  }
+
+  .fm-popup-body {
+    display: flex;
+    gap: 11px;
+    padding: 12px;
+    font-family: var(--font-sans);
+  }
+
+  .fm-popup-photo {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background-size: cover;
+    background-position: center top;
+    background-color: oklch(0.16 0.014 270);
+    overflow: hidden;
+  }
+
+  .fm-popup-photo--initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    color: oklch(0.50 0.01 270);
+  }
+
+  .fm-popup-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .fm-popup-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: oklch(0.97 0.004 270);
+    margin: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fm-popup-nick {
+    font-size: 11px;
+    color: oklch(0.55 0.014 270);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .fm-popup-loc {
+    font-size: 11px;
+    color: oklch(0.60 0.012 270);
+    margin: 2px 0 0;
+    line-height: 1.2;
+  }
+
+  .fm-popup-status {
+    display: inline-block;
+    margin-top: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    line-height: 1.4;
+  }
+
+  .fm-popup-status[data-status="available"] {
+    background: oklch(0.8 0.18 145 / 15%);
+    color: oklch(0.8 0.18 145);
+    border: 1px solid oklch(0.8 0.18 145 / 30%);
+  }
+
+  .fm-popup-status[data-status="in_camp"] {
+    background: oklch(0.82 0.16 82 / 15%);
+    color: oklch(0.82 0.16 82);
+    border: 1px solid oklch(0.82 0.16 82 / 30%);
+  }
+
+  .fm-popup-status[data-status="unavailable"] {
+    background: oklch(0.45 0.01 270 / 20%);
+    color: oklch(0.58 0.01 270);
+    border: 1px solid oklch(0.45 0.01 270 / 30%);
+  }
+
+  .fm-popup-near {
+    font-size: 10px;
+    font-weight: 500;
+    color: oklch(0.75 0.13 82);
+    margin: 0;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* ── Stats HUD ───────────────────────────────────────── */
+  .fm-hud {
+    position: absolute;
+    bottom: 32px;
+    left: 12px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: oklch(0.105 0.012 270 / 90%);
+    border: 1px solid oklch(1 0 0 / 10%);
+    backdrop-filter: blur(10px);
+    box-shadow:
+      0 4px 16px oklch(0 0 0 / 40%),
+      inset 0 0 0 1px oklch(1 0 0 / 5%);
+    pointer-events: none;
+  }
+
+  .fm-hud-total {
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: oklch(0.92 0.005 270);
+    white-space: nowrap;
+  }
+
+  .fm-hud-divider {
+    width: 1px;
+    height: 14px;
+    background: oklch(1 0 0 / 10%);
+    flex-shrink: 0;
+  }
+
+  .fm-hud-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .fm-hud-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .fm-hud-dot[data-status="available"]   { background: #4ade80; box-shadow: 0 0 6px oklch(0.8 0.18 145 / 55%); }
+  .fm-hud-dot[data-status="in_camp"]     { background: #f59e0b; }
+  .fm-hud-dot[data-status="unavailable"] { background: oklch(0.38 0.01 270); }
+
+  .fm-hud-num {
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: oklch(0.72 0.008 270);
+  }
+
+  /* ── Custom map controls ─────────────────────────────── */
+  .fm-ctrl-group {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    background: oklch(0.105 0.012 270 / 90%);
+    border: 1px solid oklch(1 0 0 / 11%);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    box-shadow:
+      0 4px 16px oklch(0 0 0 / 45%),
+      inset 0 0 0 1px oklch(1 0 0 / 5%);
+    overflow: hidden;
+  }
+
+  .fm-ctrl-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: oklch(0.75 0.007 270);
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+    border: none;
+    background: transparent;
+    padding: 0;
+  }
+
+  .fm-ctrl-btn:hover {
+    color: oklch(0.97 0.004 270);
+    background: oklch(1 0 0 / 5%);
+  }
+
+  .fm-ctrl-btn:active {
+    background: oklch(1 0 0 / 8%);
+  }
+
+  .fm-ctrl-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  .fm-ctrl-btn:focus-visible {
+    outline: 2px solid oklch(0.55 0.24 25 / 70%);
+    outline-offset: -2px;
+  }
+
+  .fm-ctrl-sep {
+    height: 1px;
+    background: oklch(1 0 0 / 8%);
+    margin: 0 8px;
+    flex-shrink: 0;
+  }
+
+  /* ── Region panel ────────────────────────────────────── */
+  .fm-region-panel {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 5;
+    max-width: min(280px, calc(100% - 80px));
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid oklch(0.55 0.22 25 / 40%);
+    background: oklch(0.105 0.013 270 / 93%);
+    backdrop-filter: blur(12px);
+    box-shadow:
+      0 8px 28px oklch(0 0 0 / 45%),
+      inset 0 0 0 1px oklch(1 0 0 / 6%);
+    pointer-events: none;
+  }
+
+  .fm-region-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .fm-region-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #e8001d;
+    box-shadow: 0 0 0 3px oklch(0.55 0.22 25 / 30%), 0 0 12px oklch(0.55 0.22 25 / 50%);
+    flex-shrink: 0;
+  }
+
+  .fm-region-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: oklch(0.72 0.18 25);
+  }
+
+  .fm-region-label {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: oklch(0.97 0.004 270);
+  }
+
+  .fm-region-count {
+    margin: 4px 0 0;
+    font-size: 11px;
+    color: oklch(0.56 0.013 270);
   }
 }

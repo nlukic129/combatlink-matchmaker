@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useNavigate } from "@tanstack/react-router";
+import { Crosshair, Plus, Minus } from "lucide-react";
 import type { Fighter } from "@/types/database";
 import {
   boundsForFeatures,
@@ -94,6 +95,16 @@ export function FightersMap({
 
   const geoJson = useMemo(() => buildGeoJSON(entries), [entries]);
 
+  const stats = useMemo(() => {
+    const all = [...fighters, ...nearMatch];
+    return {
+      total: all.length,
+      available: all.filter(f => f.availability_status === 'available').length,
+      inCamp: all.filter(f => f.availability_status === 'in_camp').length,
+      unavailable: all.filter(f => f.availability_status === 'unavailable').length,
+    };
+  }, [fighters, nearMatch]);
+
   const syncRegionHighlights = useCallback(async (map: mapboxgl.Map) => {
     if (!mountedRef.current) return;
     const gen = ++regionSyncGenRef.current;
@@ -159,9 +170,19 @@ export function FightersMap({
     const overlay = orbitOverlayRef.current;
     if (overlay) {
       overlay.innerHTML = "";
-      overlay.classList.remove("fighter-orbit-overlay--visible");
+      overlay.classList.remove("fm-orbit-overlay--visible");
     }
   }, [cancelHideTimer]);
+
+  const fitAll = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || entries.length === 0) return;
+    const bounds = new mapboxgl.LngLatBounds();
+    entries.forEach(({ fighter }) => {
+      bounds.extend([fighter.current_city_lng!, fighter.current_city_lat!]);
+    });
+    map.fitBounds(bounds, { padding: 96, maxZoom: 9, duration: 700 });
+  }, [entries]);
 
   const scheduleHideIfNeeded = useCallback(
     (key: string) => {
@@ -212,7 +233,7 @@ export function FightersMap({
       // Already open for this pin — just reposition, don't rebuild (avoids animation loop)
       if (
         activeOrbitRef.current?.key === key &&
-        overlay.classList.contains("fighter-orbit-overlay--visible")
+        overlay.classList.contains("fm-orbit-overlay--visible")
       ) {
         activeOrbitRef.current.coords = coords;
         positionOrbit(coords);
@@ -221,7 +242,7 @@ export function FightersMap({
 
       if (activeOrbitRef.current?.key !== key) {
         overlay.innerHTML = "";
-        overlay.classList.remove("fighter-orbit-overlay--visible");
+        overlay.classList.remove("fm-orbit-overlay--visible");
       }
 
       activeOrbitRef.current = { coords, key };
@@ -230,11 +251,11 @@ export function FightersMap({
       const extra = entries.length - visible.length;
 
       const ring = document.createElement("div");
-      ring.className = "fighter-orbit-ring";
+      ring.className = "fm-orbit-ring";
 
       const center = document.createElement("div");
-      center.className = "fighter-orbit-center";
-      center.innerHTML = `<span class="fighter-orbit-center-count">${entries.length}</span>`;
+      center.className = "fm-orbit-center";
+      center.innerHTML = `<span class="fm-orbit-nucleus-count">${entries.length}</span><span class="fm-orbit-nucleus-label">fighters</span>`;
 
       overlay.appendChild(ring);
       overlay.appendChild(center);
@@ -244,26 +265,24 @@ export function FightersMap({
         const angle = (i / visible.length) * 2 * Math.PI - Math.PI / 2;
         const x = Math.cos(angle) * ORBIT_RADIUS;
         const y = Math.sin(angle) * ORBIT_RADIUS;
-        const color =
-          AVAILABILITY_COLOR[fighter.availability_status] ?? AVAILABILITY_COLOR.unavailable;
         const fullName = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
         const city = fighter.current_city?.trim();
 
         const wrap = document.createElement("div");
-        wrap.className = "fighter-orbit-item-wrap";
+        wrap.className = "fm-orbit-item-wrap";
         wrap.style.setProperty("--ox", `${x}px`);
         wrap.style.setProperty("--oy", `${y}px`);
         wrap.style.animationDelay = `${i * 35}ms`;
 
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "fighter-orbit-item";
-        btn.style.setProperty("--pin-color", color);
+        btn.className = "fm-orbit-chip";
+        btn.style.setProperty("--chip-color", AVAILABILITY_COLOR[fighter.availability_status] ?? AVAILABILITY_COLOR.unavailable);
         btn.title = city ? `${fullName} — ${city}` : fullName;
         if (isNear) btn.dataset.near = "true";
 
         if (fighter.photo_url) {
-          btn.innerHTML = `<img src="${escapeHtml(fighter.photo_url)}" alt="" class="fighter-orbit-photo" />`;
+          btn.innerHTML = `<img src="${escapeHtml(fighter.photo_url)}" alt="" class="fm-orbit-photo" />`;
         } else {
           btn.textContent = fighter.first_name?.[0]?.toUpperCase() ?? "?";
         }
@@ -277,18 +296,23 @@ export function FightersMap({
           });
         });
 
+        const nameLabel = document.createElement("span");
+        nameLabel.className = "fm-orbit-name";
+        nameLabel.textContent = fighter.first_name ?? "?";
+
         wrap.appendChild(btn);
+        wrap.appendChild(nameLabel);
         overlay.appendChild(wrap);
       });
 
       if (extra > 0) {
         const more = document.createElement("div");
-        more.className = "fighter-orbit-more";
+        more.className = "fm-orbit-more";
         more.textContent = `+${extra} more`;
         overlay.appendChild(more);
       }
 
-      overlay.classList.add("fighter-orbit-overlay--visible");
+      overlay.classList.add("fm-orbit-overlay--visible");
       positionOrbit(coords);
     },
     [positionOrbit]
@@ -373,14 +397,12 @@ export function FightersMap({
         clusterMarkersRef.current.set(clusterId, marker);
       } else {
         marker.setLngLat(coords);
-        const countEl = marker.getElement().querySelector(".fighter-cluster-count");
+        const countEl = marker.getElement().querySelector(".fm-cluster-count");
         if (countEl) countEl.textContent = String(count);
-        const badge = marker.getElement().querySelector(".fighter-cluster-badge");
-        if (badge) {
-          badge.classList.remove("fighter-cluster-badge--sm", "fighter-cluster-badge--md", "fighter-cluster-badge--lg", "fighter-cluster-badge--round");
-          const size = count >= 25 ? "lg" : count >= 10 ? "md" : "sm";
-          badge.classList.add(`fighter-cluster-badge--${size}`);
-          if (count < 10) badge.classList.add("fighter-cluster-badge--round");
+        const disk = marker.getElement().querySelector(".fm-cluster-disk");
+        if (disk) {
+          const root = marker.getElement();
+          root.dataset.tier = count >= 25 ? 'lg' : count >= 10 ? 'md' : 'sm';
         }
       }
     }
@@ -433,7 +455,8 @@ export function FightersMap({
       let marker = stackMarkersRef.current.get(key);
 
       if (!marker) {
-        const el = createStackElement(stackEntries.length);
+        const cityName = stackEntries[0]?.fighter.current_city ?? '';
+        const el = createStackElement(stackEntries.length, cityName);
         marker = new mapboxgl.Marker({ element: el, anchor: "center" })
           .setLngLat(group.coords)
           .addTo(map);
@@ -451,8 +474,8 @@ export function FightersMap({
         stackMarkersRef.current.set(key, marker);
       } else {
         marker.setLngLat(group.coords);
-        const countEl = marker.getElement().querySelector(".fighter-cluster-count");
-        if (countEl) countEl.textContent = String(stackEntries.length);
+        const badgeEl = marker.getElement().querySelector(".fm-stack-badge");
+        if (badgeEl) badgeEl.textContent = String(stackEntries.length);
       }
     }
 
@@ -471,35 +494,32 @@ export function FightersMap({
       const feature = pointFeatures.find((f) => f.properties?.id === id);
       if (!feature) continue;
 
-      let coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
-      const key = locationKey(coords);
-      const group = byLocation.get(key);
-
-      // Spiderfy singles that share location with others (shouldn't happen) or nearby overlap
-      if (group && group.ids.length === 1) {
-        // check if very close to another single at different key - skip for simplicity
-      }
+      const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
 
       const { fighter, isNear } = entry;
-      const color =
-        AVAILABILITY_COLOR[fighter.availability_status] ?? AVAILABILITY_COLOR.unavailable;
+      const fullName = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
 
       let marker = htmlMarkersRef.current.get(id);
       if (!marker) {
-        const el = createMarkerElement(fighter, color, isNear);
-        const fullName = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
+        const el = createMarkerElement(fighter, isNear);
 
+        const statusLabel = { available: 'Available', in_camp: 'In camp', unavailable: 'Unavailable' }[fighter.availability_status] ?? '';
+        const cityLine = [fighter.current_city, fighter.current_city_country].filter(Boolean).join(', ');
         const popup = new mapboxgl.Popup({
-          offset: 28,
+          offset: 24,
           closeButton: false,
-          maxWidth: "240px",
-          className: "fighter-map-popup",
+          maxWidth: '240px',
+          className: 'fm-popup',
         }).setHTML(`
-          <div class="fighter-map-popup-body">
-            <p class="fighter-map-popup-name">${escapeHtml(fullName)}</p>
-            ${fighter.nickname ? `<p class="fighter-map-popup-nick">&ldquo;${escapeHtml(fighter.nickname)}&rdquo;</p>` : ""}
-            <p class="fighter-map-popup-city">${escapeHtml(fighter.current_city ?? "")}</p>
-            ${isNear ? `<p class="fighter-map-popup-near">Near match</p>` : ""}
+          <div class="fm-popup-body">
+            ${fighter.photo_url ? `<div class="fm-popup-photo" style="background-image:url('${escapeHtml(fighter.photo_url)}')"></div>` : `<div class="fm-popup-photo fm-popup-photo--initials"><span>${escapeHtml(fighter.first_name?.[0]?.toUpperCase() ?? '?')}</span></div>`}
+            <div class="fm-popup-info">
+              <p class="fm-popup-name">${escapeHtml(fullName)}</p>
+              ${fighter.nickname ? `<p class="fm-popup-nick">&ldquo;${escapeHtml(fighter.nickname)}&rdquo;</p>` : ''}
+              ${cityLine ? `<p class="fm-popup-loc">${escapeHtml(cityLine)}</p>` : ''}
+              <span class="fm-popup-status" data-status="${fighter.availability_status ?? 'unavailable'}">${escapeHtml(statusLabel)}</span>
+              ${isNear ? `<span class="fm-popup-near">Near match</span>` : ''}
+            </div>
           </div>
         `);
 
@@ -551,7 +571,6 @@ export function FightersMap({
       attributionControl: false,
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
     mapRef.current = map;
 
@@ -603,6 +622,20 @@ export function FightersMap({
       map.on("sourcedata", onSourceData);
 
       void syncRegionHighlightsRef.current(map);
+
+      // Atmospheric fog
+      map.setFog({
+        color: 'rgb(2, 2, 14)',
+        'high-color': 'rgb(4, 4, 20)',
+        'horizon-blend': 0.05,
+        range: [0.8, 8],
+        'space-color': 'rgb(2, 2, 14)',
+        'star-intensity': 0,
+      });
+      // Hide visual noise (POI labels)
+      ['poi-label', 'transit-label', 'airport-label', 'natural-point-label', 'water-point-label'].forEach(id => {
+        try { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none'); } catch {}
+      });
     };
 
     map.on("load", onLoad);
@@ -718,7 +751,13 @@ export function FightersMap({
       );
     };
 
-    return runWhenMapReady(map, draw);
+    const cancel = runWhenMapReady(map, draw);
+    return () => {
+      cancel();
+      // Also remove radius in cleanup so switching city→clear never leaves stale layers
+      const m = mapRef.current;
+      if (m?.isStyleLoaded()) removeRadiusLayers(m);
+    };
   }, [cityLat, cityLng, radiusKm]);
 
   // Resize when map becomes visible again after list view (container was display:none equivalent)
@@ -731,22 +770,80 @@ export function FightersMap({
   }, [visible]);
 
   return (
-    <div ref={wrapperRef} className="fighter-map-container relative h-full w-full min-h-[400px]">
+    <div ref={wrapperRef} className="fm-map-root relative h-full w-full min-h-[400px]">
       <div ref={containerRef} className="h-full w-full" />
-      <div ref={orbitOverlayRef} className="fighter-orbit-overlay" aria-hidden />
+      <div ref={orbitOverlayRef} className="fm-orbit-overlay" aria-hidden />
+
+      {/* Region panel */}
       {highlightCountries && highlightCountries.length > 0 && (
-        <div className="fighter-map-region-panel" aria-live="polite">
-          <div className="fighter-map-region-panel-header">
-            <span className="fighter-map-region-dot" aria-hidden />
-            <span className="fighter-map-region-title">Selected region</span>
+        <div className="fm-region-panel" aria-live="polite">
+          <div className="fm-region-panel-header">
+            <span className="fm-region-dot" aria-hidden />
+            <span className="fm-region-title">Selected region</span>
           </div>
-          <p className="fighter-map-region-label">{regionLabel ?? formatRegionLabel(highlightCountries)}</p>
-          <p className="fighter-map-region-count">
-            {highlightCountries.length}{" "}
-            {highlightCountries.length === 1 ? "country highlighted" : "countries highlighted"}
+          <p className="fm-region-label">{regionLabel ?? formatRegionLabel(highlightCountries)}</p>
+          <p className="fm-region-count">
+            {highlightCountries.length} {highlightCountries.length === 1 ? 'country highlighted' : 'countries highlighted'}
           </p>
         </div>
       )}
+
+      {/* Stats HUD */}
+      {stats.total > 0 && (
+        <div className="fm-hud">
+          <span className="fm-hud-total">{stats.total.toLocaleString()} fighters</span>
+          <div className="fm-hud-divider" />
+          <div className="fm-hud-row">
+            <span className="fm-hud-dot" data-status="available" />
+            <span className="fm-hud-num">{stats.available}</span>
+            {stats.inCamp > 0 && (
+              <>
+                <span className="fm-hud-dot" data-status="in_camp" />
+                <span className="fm-hud-num">{stats.inCamp}</span>
+              </>
+            )}
+            {stats.unavailable > 0 && (
+              <>
+                <span className="fm-hud-dot" data-status="unavailable" />
+                <span className="fm-hud-num">{stats.unavailable}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Custom map controls */}
+      <div className="fm-ctrl-group">
+        <button
+          type="button"
+          className="fm-ctrl-btn"
+          onClick={fitAll}
+          title="Fit all fighters"
+          disabled={entries.length === 0}
+          aria-label="Fit all fighters on map"
+        >
+          <Crosshair className="h-3.5 w-3.5" />
+        </button>
+        <div className="fm-ctrl-sep" />
+        <button
+          type="button"
+          className="fm-ctrl-btn"
+          onClick={() => mapRef.current?.zoomIn({ duration: 250 })}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          className="fm-ctrl-btn"
+          onClick={() => mapRef.current?.zoomOut({ duration: 250 })}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          <Minus className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -871,64 +968,70 @@ function buildGeoJSON(entries: FighterEntry[]): GeoJSON.FeatureCollection {
 
 function createClusterElement(count: number): HTMLElement {
   const root = document.createElement("div");
-  root.className = "fighter-cluster-marker";
-  const size = count >= 25 ? "lg" : count >= 10 ? "md" : "sm";
-  const round = count < 10;
+  root.className = "fm-cluster";
+  const tier = count >= 25 ? "lg" : count >= 10 ? "md" : "sm";
+  root.dataset.tier = tier;
   root.innerHTML = `
-    <div class="fighter-cluster-badge fighter-cluster-badge--${size}${round ? " fighter-cluster-badge--round" : ""}">
-      <span class="fighter-cluster-count">${count}</span>
+    <div class="fm-cluster-disk">
+      <span class="fm-cluster-count">${count}</span>
     </div>
   `;
   return root;
 }
 
-function createStackElement(count: number): HTMLElement {
+function createStackElement(count: number, cityName: string): HTMLElement {
   const root = document.createElement("div");
-  root.className = "fighter-cluster-marker fighter-stack-marker";
-  const size = count >= 25 ? "lg" : count >= 10 ? "md" : "sm";
-  const round = count < 10;
+  root.className = "fm-stack";
   root.innerHTML = `
-    <div class="fighter-cluster-badge fighter-cluster-badge--${size}${round ? " fighter-cluster-badge--round" : ""}">
-      <span class="fighter-cluster-count">${count}</span>
+    <div class="fm-stack-pill">
+      <span class="fm-stack-badge">${count}</span>
+      <span class="fm-stack-sep"></span>
+      <span class="fm-stack-city">${escapeHtml(cityName.split(',')[0].trim())}</span>
     </div>
+    <div class="fm-stack-tip"></div>
   `;
   return root;
 }
 
-function createMarkerElement(fighter: Fighter, color: string, isNear: boolean): HTMLElement {
+function createMarkerElement(fighter: Fighter, isNear: boolean): HTMLElement {
+  const status = fighter.availability_status ?? "unavailable";
   const root = document.createElement("div");
-  root.className = "fighter-marker";
-  if (isNear) root.dataset.near = "true";
+  root.className = "fm-pin";
+  root.dataset.status = isNear ? "near" : status;
 
-  const pin = document.createElement("div");
-  pin.className = "fighter-marker-pin";
-  pin.style.setProperty("--pin-color", color);
+  // Pulse ring (available only)
+  if (status === "available" && !isNear) {
+    const pulse = document.createElement("div");
+    pulse.className = "fm-pin-pulse";
+    root.appendChild(pulse);
+  }
+
+  const disk = document.createElement("div");
+  disk.className = "fm-pin-disk";
 
   if (fighter.photo_url) {
     const img = document.createElement("img");
     img.src = fighter.photo_url;
-    img.alt = fighter.first_name ?? "";
-    img.className = "fighter-marker-photo";
+    img.alt = "";
+    img.className = "fm-pin-photo";
     img.draggable = false;
-    pin.appendChild(img);
+    disk.appendChild(img);
   } else {
-    const initials = document.createElement("span");
-    initials.className = "fighter-marker-initials";
-    initials.textContent = fighter.first_name?.[0]?.toUpperCase() ?? "?";
-    pin.appendChild(initials);
+    const ini = document.createElement("span");
+    ini.className = "fm-pin-initials";
+    ini.textContent = fighter.first_name?.[0]?.toUpperCase() ?? "?";
+    disk.appendChild(ini);
   }
 
   const dot = document.createElement("span");
-  dot.className = "fighter-marker-status";
-  dot.style.background = color;
-  pin.appendChild(dot);
+  dot.className = "fm-pin-dot";
+  disk.appendChild(dot);
 
-  const tail = document.createElement("div");
-  tail.className = "fighter-marker-tail";
-  tail.style.setProperty("--pin-color", color);
+  const tip = document.createElement("div");
+  tip.className = "fm-pin-tip";
 
-  root.appendChild(pin);
-  root.appendChild(tail);
+  root.appendChild(disk);
+  root.appendChild(tip);
   return root;
 }
 
