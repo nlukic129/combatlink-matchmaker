@@ -29,16 +29,15 @@ function LoginPage() {
   const auth = useRedirectIfAuthenticated();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-
-  if (!isGuestReady(auth)) {
-    return <RouterPending />;
-  }
-
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  if (!isGuestReady(auth)) {
+    return <RouterPending />;
+  }
 
   async function onSubmit(values: FormValues) {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -63,7 +62,7 @@ function LoginPage() {
       return;
     }
 
-    await navigate({ to: mm.must_change_password ? "/change-password" : "/search" });
+    await navigate({ to: mm.must_change_password ? "/change-password" : "/search/setup" });
   }
 
   return (

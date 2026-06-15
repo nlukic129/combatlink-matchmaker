@@ -162,6 +162,51 @@
       var(--background);
   }
 
+  .search-setup {
+    background:
+      radial-gradient(ellipse 90% 70% at 50% -30%, oklch(0.55 0.24 25 / 14%), transparent),
+      radial-gradient(ellipse 50% 40% at 0% 80%, oklch(0.55 0.24 25 / 5%), transparent),
+      radial-gradient(ellipse 40% 35% at 100% 60%, oklch(0.55 0.24 25 / 4%), transparent),
+      var(--background);
+  }
+
+  .search-setup-glow::before {
+    content: "";
+    position: absolute;
+    top: 10%;
+    left: 50%;
+    width: min(420px, 80vw);
+    height: 200px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse, oklch(0.55 0.24 25 / 6%), transparent 70%);
+    filter: blur(32px);
+  }
+
+  .search-setup-card {
+    animation: search-setup-in 0.45s ease-out both;
+  }
+
+  .search-setup-option:active {
+    transform: scale(0.98);
+  }
+
+  .search-setup-cta {
+    box-shadow:
+      0 4px 20px oklch(0.55 0.24 25 / 35%),
+      0 0 0 1px oklch(0.55 0.24 25 / 20%);
+  }
+
+  @keyframes search-setup-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
   .glass-panel {
     background: oklch(0.125 0.014 270 / 80%);
     backdrop-filter: blur(12px);

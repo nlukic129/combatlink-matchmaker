@@ -4,7 +4,7 @@ import { X, Dumbbell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import type { SearchFilters } from "@/routes/_app.search";
+import type { SearchFilters } from "@/lib/search-schema";
 
 const SPORTS = [
   { slug: "mma", label: "MMA" },

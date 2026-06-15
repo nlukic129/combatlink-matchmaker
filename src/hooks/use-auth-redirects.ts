@@ -68,7 +68,7 @@ export function useRedirectIfAuthenticated() {
     redirectingRef.current = true;
 
     void navigate({
-      to: auth.matchmaker.must_change_password ? "/change-password" : "/search",
+      to: auth.matchmaker.must_change_password ? "/change-password" : "/search/setup",
       replace: true,
     });
   }, [auth.loading, auth.session, auth.matchmaker, navigate]);

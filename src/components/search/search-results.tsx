@@ -11,7 +11,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import type { SearchFilters } from "@/routes/_app.search";
+import type { SearchFilters } from "@/lib/search-schema";
 
 const PAGE_SIZE = 20;
 

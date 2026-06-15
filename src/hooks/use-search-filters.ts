@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import type { SearchFilters } from "@/routes/_app.search";
+import type { SearchFilters } from "@/lib/search-schema";
 
 export function useSearchFilters(filters: SearchFilters) {
   const navigate = useNavigate({ from: "/search" });

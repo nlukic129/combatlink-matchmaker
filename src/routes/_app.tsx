@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Bell, Heart, Search, LogOut } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,10 +14,26 @@ export const Route = createFileRoute("/_app")({
   component: AppLayout,
 });
 
-const NAV_ITEMS = [
-  { to: "/search", icon: Search, label: "Search" },
-  { to: "/favourites", icon: Heart, label: "Favourites" },
-] as const;
+const NAV_LINK_CLASS =
+  "relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent hover:text-foreground";
+
+const NAV_LINK_ACTIVE_CLASS =
+  "active text-foreground bg-accent/80 after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:rounded-full after:bg-primary";
+
+function SearchNavLink() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const active = pathname.startsWith("/search");
+
+  return (
+    <Link
+      to="/search/setup"
+      className={cn(NAV_LINK_CLASS, active && NAV_LINK_ACTIVE_CLASS)}
+    >
+      <Search className="h-4 w-4" />
+      <span className="hidden sm:inline">Search</span>
+    </Link>
+  );
+}
 
 function AppLayout() {
   const auth = useRequireMatchmaker();
@@ -44,14 +60,13 @@ function AppShell() {
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="sticky top-0 z-50 border-b border-border glass-panel">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center gap-6 px-4 sm:px-6">
-          <Link to="/search" className="shrink-0">
+          <Link to="/search/setup" className="shrink-0">
             <Logo size="sm" className="items-start!" />
           </Link>
 
           <nav className="flex flex-1 items-center gap-1">
-            {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
-              <NavLink key={to} to={to} icon={<Icon className="h-4 w-4" />} label={label} />
-            ))}
+            <SearchNavLink />
+            <NavLink to="/favourites" icon={<Heart className="h-4 w-4" />} label="Favourites" />
           </nav>
 
           <div className="flex items-center gap-1">

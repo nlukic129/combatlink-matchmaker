@@ -18,6 +18,8 @@ import { Route as AppSearchRouteImport } from './routes/_app.search'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppFavouritesRouteImport } from './routes/_app.favourites'
 import { Route as AppCompareRouteImport } from './routes/_app.compare'
+import { Route as AppSearchIndexRouteImport } from './routes/_app.search.index'
+import { Route as AppSearchSetupRouteImport } from './routes/_app.search.setup'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -63,6 +65,16 @@ const AppCompareRoute = AppCompareRouteImport.update({
   path: '/compare',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSearchIndexRoute = AppSearchIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSearchRoute,
+} as any)
+const AppSearchSetupRoute = AppSearchSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AppSearchRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -71,8 +83,10 @@ export interface FileRoutesByFullPath {
   '/compare': typeof AppCompareRoute
   '/favourites': typeof AppFavouritesRoute
   '/notifications': typeof AppNotificationsRoute
-  '/search': typeof AppSearchRoute
+  '/search': typeof AppSearchRouteWithChildren
   '/settings': typeof AppSettingsRoute
+  '/search/setup': typeof AppSearchSetupRoute
+  '/search/': typeof AppSearchIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -81,8 +95,9 @@ export interface FileRoutesByTo {
   '/compare': typeof AppCompareRoute
   '/favourites': typeof AppFavouritesRoute
   '/notifications': typeof AppNotificationsRoute
-  '/search': typeof AppSearchRoute
   '/settings': typeof AppSettingsRoute
+  '/search/setup': typeof AppSearchSetupRoute
+  '/search': typeof AppSearchIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -93,8 +108,10 @@ export interface FileRoutesById {
   '/_app/compare': typeof AppCompareRoute
   '/_app/favourites': typeof AppFavouritesRoute
   '/_app/notifications': typeof AppNotificationsRoute
-  '/_app/search': typeof AppSearchRoute
+  '/_app/search': typeof AppSearchRouteWithChildren
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/search/setup': typeof AppSearchSetupRoute
+  '/_app/search/': typeof AppSearchIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -107,6 +124,8 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/search'
     | '/settings'
+    | '/search/setup'
+    | '/search/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -115,8 +134,9 @@ export interface FileRouteTypes {
     | '/compare'
     | '/favourites'
     | '/notifications'
-    | '/search'
     | '/settings'
+    | '/search/setup'
+    | '/search'
   id:
     | '__root__'
     | '/'
@@ -128,6 +148,8 @@ export interface FileRouteTypes {
     | '/_app/notifications'
     | '/_app/search'
     | '/_app/settings'
+    | '/_app/search/setup'
+    | '/_app/search/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -202,14 +224,42 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCompareRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/search/': {
+      id: '/_app/search/'
+      path: '/'
+      fullPath: '/search/'
+      preLoaderRoute: typeof AppSearchIndexRouteImport
+      parentRoute: typeof AppSearchRoute
+    }
+    '/_app/search/setup': {
+      id: '/_app/search/setup'
+      path: '/setup'
+      fullPath: '/search/setup'
+      preLoaderRoute: typeof AppSearchSetupRouteImport
+      parentRoute: typeof AppSearchRoute
+    }
   }
 }
+
+interface AppSearchRouteChildren {
+  AppSearchSetupRoute: typeof AppSearchSetupRoute
+  AppSearchIndexRoute: typeof AppSearchIndexRoute
+}
+
+const AppSearchRouteChildren: AppSearchRouteChildren = {
+  AppSearchSetupRoute: AppSearchSetupRoute,
+  AppSearchIndexRoute: AppSearchIndexRoute,
+}
+
+const AppSearchRouteWithChildren = AppSearchRoute._addFileChildren(
+  AppSearchRouteChildren,
+)
 
 interface AppRouteChildren {
   AppCompareRoute: typeof AppCompareRoute
   AppFavouritesRoute: typeof AppFavouritesRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
-  AppSearchRoute: typeof AppSearchRoute
+  AppSearchRoute: typeof AppSearchRouteWithChildren
   AppSettingsRoute: typeof AppSettingsRoute
 }
 
@@ -217,7 +267,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCompareRoute: AppCompareRoute,
   AppFavouritesRoute: AppFavouritesRoute,
   AppNotificationsRoute: AppNotificationsRoute,
-  AppSearchRoute: AppSearchRoute,
+  AppSearchRoute: AppSearchRouteWithChildren,
   AppSettingsRoute: AppSettingsRoute,
 }
 

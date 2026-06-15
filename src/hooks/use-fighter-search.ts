@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveLocationCountries } from "@/lib/geo/countries";
-import type { SearchFilters } from "@/routes/_app.search";
+import type { SearchFilters } from "@/lib/search-schema";
 import type { Fighter } from "@/types/database";
 
 const LIST_PAGE_SIZE = 20;

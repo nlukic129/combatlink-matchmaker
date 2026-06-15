@@ -41,16 +41,15 @@ function ChangePasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const { first } = Route.useSearch();
   const isFirstLogin = first === "true";
-
-  if (!isAuthenticatedUserReady(auth)) {
-    return <RouterPending />;
-  }
-
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  if (!isAuthenticatedUserReady(auth)) {
+    return <RouterPending />;
+  }
 
   async function onSubmit(values: FormValues) {
     const { error: updateError } = await supabase.auth.updateUser({
@@ -71,7 +70,7 @@ function ChangePasswordPage() {
     }
 
     toast.success("Password updated successfully");
-    await navigate({ to: "/search" });
+    await navigate({ to: "/search/setup" });
   }
 
   return (

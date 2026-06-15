@@ -8,7 +8,7 @@ import {
   type ContinentId,
   resolveLocationCountries,
 } from "@/lib/geo/countries";
-import type { SearchFilters } from "@/routes/_app.search";
+import type { SearchFilters } from "@/lib/search-schema";
 
 export function LocationRegionFilters({ filters }: { filters: SearchFilters }) {
   const navigate = useNavigate({ from: "/search" });
