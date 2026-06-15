@@ -1,6 +1,7 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { isAppAccessReady, useRequireMatchmaker } from "@/hooks/use-auth-redirects";
 import { AppHeader } from "@/components/layout/app-header";
+import { AppPageTransition } from "@/components/layout/app-page-transition";
 import { RouterPending } from "@/components/router-fallbacks";
 
 export const Route = createFileRoute("/_app")({
@@ -23,7 +24,7 @@ function AppShell() {
       <AppHeader />
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <Outlet />
+        <AppPageTransition />
       </main>
     </div>
   );

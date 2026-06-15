@@ -29,7 +29,7 @@ function SearchPage() {
   const filters = Route.useSearch();
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
+    <div className="search-content-vt flex h-[calc(100dvh-3.5rem)] flex-col">
       <MandatoryFilters filters={filters} />
 
       <div className="mx-auto flex w-full max-w-[1600px] flex-1 overflow-hidden">

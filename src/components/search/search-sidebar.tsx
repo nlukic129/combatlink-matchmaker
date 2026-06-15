@@ -435,12 +435,12 @@ function StylePhysicalFilters({ filters }: { filters: SearchFilters }) {
     queryFn: async () => {
       const { data } = await supabase
         .from("fight_style_sports")
-        .select("fight_styles(id, name, slug)")
+        .select("fight_styles(id, label, slug)")
         .eq("sport_slug", filters.sport!);
       return (data ?? [])
         .map((r: any) => r.fight_styles)
         .filter(Boolean)
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        .sort((a: any, b: any) => a.label.localeCompare(b.label));
     },
   });
 
@@ -473,7 +473,7 @@ function StylePhysicalFilters({ filters }: { filters: SearchFilters }) {
                         : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground"
                     )}
                   >
-                    {fs.name}
+                    {fs.label}
                   </button>
                 );
               })}

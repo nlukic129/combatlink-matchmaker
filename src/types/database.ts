@@ -111,8 +111,10 @@ export type Database = {
       fight_styles: {
         Row: {
           id: number;
-          name: string;
           slug: string;
+          label: string;
+          description: string;
+          sort_order: number;
           active: boolean;
         };
         Insert: Record<string, never>;

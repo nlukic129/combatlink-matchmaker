@@ -3,6 +3,7 @@ import { Bell, ChevronDown, Heart, LogOut, Search, Settings } from "lucide-react
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
+import { useLastSearchLocation } from "@/hooks/use-last-search-location";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
@@ -17,14 +18,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const NAV_ITEMS = [
-  { to: "/search/setup", label: "Search", icon: Search, match: (path: string) => path.startsWith("/search") },
-  { to: "/favourites", label: "Favourites", icon: Heart, match: (path: string) => path.startsWith("/favourites") },
+  { id: "search" as const, label: "Search", icon: Search, match: (path: string) => path.startsWith("/search") },
+  { id: "favourites" as const, to: "/favourites" as const, label: "Favourites", icon: Heart, match: (path: string) => path.startsWith("/favourites") },
 ] as const;
 
 export function AppHeader() {
   const { matchmaker } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
+  const lastSearch = useLastSearchLocation();
 
   const displayName = [matchmaker?.first_name, matchmaker?.last_name].filter(Boolean).join(" ") || "Matchmaker";
   const initials =
@@ -40,18 +42,51 @@ export function AppHeader() {
       <div className="mx-auto grid h-14 max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 sm:px-6">
 
         {/* Logo */}
-        <Link to="/search/setup" className="min-w-0 justify-self-start">
+        <Link
+          to={lastSearch.to}
+          search={lastSearch.search}
+          className="min-w-0 justify-self-start"
+        >
           <Logo size="sm" variant="brand" productLabel className="items-start!" />
         </Link>
 
         {/* Nav — flat, no pill container */}
         <nav className="inline-flex items-stretch" aria-label="Main navigation">
-          {NAV_ITEMS.map(({ to, label, icon: Icon, match }) => {
-            const active = match(pathname);
+          {NAV_ITEMS.map((item) => {
+            const active = item.match(pathname);
+            const Icon = item.icon;
+
+            if (item.id === "search") {
+              return (
+                <Link
+                  key="search"
+                  to={lastSearch.to}
+                  search={lastSearch.search}
+                  className={cn(
+                    "app-header-nav-item relative inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium transition-colors duration-150",
+                    active
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <Icon
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 transition-colors duration-150",
+                      active ? "text-primary" : ""
+                    )}
+                    aria-hidden
+                  />
+                  <span className="hidden sm:inline">{item.label}</span>
+                  {active && <span className="app-header-active-bar" aria-hidden />}
+                </Link>
+              );
+            }
+
             return (
               <Link
-                key={to}
-                to={to}
+                key={item.id}
+                to={item.to}
                 className={cn(
                   "app-header-nav-item relative inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium transition-colors duration-150",
                   active
@@ -67,7 +102,7 @@ export function AppHeader() {
                   )}
                   aria-hidden
                 />
-                <span className="hidden sm:inline">{label}</span>
+                <span className="hidden sm:inline">{item.label}</span>
                 {active && <span className="app-header-active-bar" aria-hidden />}
               </Link>
             );

@@ -263,7 +263,7 @@ function SportsTab({ fighterId }: { fighterId: string }) {
             weight_classes ( id, name, limit_kg, gender )
           ),
           fighter_sport_fight_styles (
-            fight_styles ( id, name, slug )
+            fight_styles ( id, label, slug )
           )
         `)
         .eq("user_id", fighterId)
@@ -356,7 +356,7 @@ function SportCard({ sport }: { sport: any }) {
                 key={fs.id}
                 className="rounded-full bg-accent px-2.5 py-0.5 text-xs text-foreground"
               >
-                {fs.name}
+                {fs.label}
               </span>
             ))}
           </div>

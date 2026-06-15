@@ -207,26 +207,27 @@
 
   @media (min-width: 1024px) {
     .search-setup-globe-accent {
-      right: -110px;
+      right: -30px;
       top: 50%;
       transform: translateY(-50%);
-      width: 640px;
-      height: 640px;
-      opacity: 1;
-      filter: drop-shadow(0 0 32px oklch(0.55 0.24 25 / 22%));
+      width: 780px;
+      height: 780px;
+      opacity: 0.52;
+      filter: drop-shadow(0 0 28px oklch(0.55 0.24 25 / 16%));
     }
 
     .search-setup-globe-accent .wireframe-globe {
+      /* centered mask — globe bleeds left under the form for depth */
       mask-image: radial-gradient(
-        ellipse 96% 92% at 56% 50%,
-        oklch(0 0 0 / 100%) 46%,
-        oklch(0 0 0 / 62%) 67%,
+        ellipse 90% 86% at 50% 50%,
+        oklch(0 0 0 / 100%) 38%,
+        oklch(0 0 0 / 48%) 64%,
         transparent 100%
       );
       -webkit-mask-image: radial-gradient(
-        ellipse 96% 92% at 56% 50%,
-        oklch(0 0 0 / 100%) 46%,
-        oklch(0 0 0 / 62%) 67%,
+        ellipse 90% 86% at 50% 50%,
+        oklch(0 0 0 / 100%) 38%,
+        oklch(0 0 0 / 48%) 64%,
         transparent 100%
       );
     }
@@ -234,10 +235,11 @@
 
   @media (min-width: 1280px) {
     .search-setup-globe-accent {
-      right: -80px;
-      width: 730px;
-      height: 730px;
-      filter: drop-shadow(0 0 40px oklch(0.55 0.24 25 / 24%));
+      right: -20px;
+      width: 900px;
+      height: 900px;
+      opacity: 0.58;
+      filter: drop-shadow(0 0 36px oklch(0.55 0.24 25 / 18%));
     }
   }
 
@@ -272,6 +274,30 @@
         oklch(0 0 0 / 80%) 68%,
         transparent 100%
       );
+    }
+  }
+
+  /* Globe entrance — fires when .is-ready is added after three.js init */
+  .globe-canvas-enter {
+    opacity: 0;
+    transform: scale(0.84);
+    will-change: opacity, transform;
+  }
+
+  .globe-canvas-enter.is-ready {
+    opacity: 1;
+    transform: scale(1);
+    /* opacity settles first, scale drags slightly behind for weight */
+    transition:
+      opacity   1000ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 1400ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .globe-canvas-enter         { transform: none; }
+    .globe-canvas-enter.is-ready {
+      transition: opacity 300ms ease-out;
+      transform: none;
     }
   }
 
@@ -376,6 +402,7 @@
 
   /* ── App Header ── */
   .app-header {
+    view-transition-name: app-header;
     box-shadow:
       0 1px 0 oklch(1 0 0 / 6%),
       0 8px 28px oklch(0.55 0.24 25 / 5%);
@@ -422,6 +449,200 @@
     background: oklch(0.55 0.24 25);
     border-radius: 1px;
     box-shadow: 0 0 10px oklch(0.55 0.24 25 / 65%);
+  }
+
+  /* ── App page slide (Search ↔ Favourites) ── */
+  .app-page {
+    view-transition-name: app-page;
+  }
+
+  ::view-transition-group(app-header) {
+    animation: none;
+  }
+
+  ::view-transition-old(app-header),
+  ::view-transition-new(app-header) {
+    animation: none;
+  }
+
+  /* Only animate app-page for typed nav slides — no defaults (prevents flicker) */
+  ::view-transition-group(app-page) {
+    overflow: clip;
+  }
+
+  html:active-view-transition-type(slide-forward) {
+    &::view-transition-group(app-page) {
+      animation-duration: 0.52s;
+      animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    &::view-transition-old(app-page) {
+      animation: 0.52s cubic-bezier(0.32, 0.72, 0, 1) both app-page-exit-left;
+    }
+    &::view-transition-new(app-page) {
+      animation: 0.52s cubic-bezier(0.32, 0.72, 0, 1) both app-page-enter-right;
+    }
+  }
+
+  html:active-view-transition-type(slide-back) {
+    &::view-transition-group(app-page) {
+      animation-duration: 0.52s;
+      animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    &::view-transition-old(app-page) {
+      animation: 0.52s cubic-bezier(0.32, 0.72, 0, 1) both app-page-exit-right;
+    }
+    &::view-transition-new(app-page) {
+      animation: 0.52s cubic-bezier(0.32, 0.72, 0, 1) both app-page-enter-left;
+    }
+  }
+
+  @keyframes app-page-exit-left {
+    to {
+      transform: translateX(-100%);
+      opacity: 0.92;
+    }
+  }
+
+  @keyframes app-page-enter-right {
+    from {
+      transform: translateX(100%);
+      opacity: 0.92;
+    }
+  }
+
+  @keyframes app-page-exit-right {
+    to {
+      transform: translateX(100%);
+      opacity: 0.92;
+    }
+  }
+
+  @keyframes app-page-enter-left {
+    from {
+      transform: translateX(-100%);
+      opacity: 0.92;
+    }
+  }
+
+  /* Fallback when View Transitions API is unavailable */
+  .app-page-fallback-forward {
+    animation: app-page-fallback-forward 0.52s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  .app-page-fallback-back {
+    animation: app-page-fallback-back 0.52s cubic-bezier(0.32, 0.72, 0, 1) both;
+  }
+
+  @keyframes app-page-fallback-forward {
+    from {
+      transform: translateX(100%);
+      opacity: 0.85;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes app-page-fallback-back {
+    from {
+      transform: translateX(-100%);
+      opacity: 0.85;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  /* ── Search setup → results launch ── */
+  .search-content-vt {
+    view-transition-name: search-content;
+  }
+
+  /* WebGL canvas does not snapshot cleanly — exclude from transition layers */
+  .search-setup-globe-accent,
+  .wireframe-globe,
+  .wireframe-globe canvas {
+    view-transition-name: none;
+  }
+
+  html:active-view-transition-type(search-launch),
+  html:active-view-transition-type(search-return) {
+    &::view-transition-group(app-page) {
+      display: none;
+    }
+    &::view-transition-old(app-page),
+    &::view-transition-new(app-page),
+    &::view-transition-group(root),
+    &::view-transition-old(root),
+    &::view-transition-new(root) {
+      animation: none;
+    }
+  }
+
+  ::view-transition-group(search-content) {
+    overflow: clip;
+    animation-duration: 0.58s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html:active-view-transition-type(search-launch) {
+    &::view-transition-old(search-content) {
+      animation: 0.58s cubic-bezier(0.22, 1, 0.36, 1) both search-setup-exit;
+    }
+    &::view-transition-new(search-content) {
+      animation: 0.58s cubic-bezier(0.22, 1, 0.36, 1) both search-results-enter;
+    }
+  }
+
+  html:active-view-transition-type(search-return) {
+    &::view-transition-old(search-content) {
+      animation: 0.52s cubic-bezier(0.32, 0.72, 0, 1) both search-results-exit;
+    }
+    &::view-transition-new(search-content) {
+      animation: 0.52s cubic-bezier(0.32, 0.72, 0, 1) both search-setup-enter;
+    }
+  }
+
+  @keyframes search-setup-exit {
+    to {
+      transform: scale(1.04) translateY(-1.5%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes search-results-enter {
+    from {
+      transform: scale(0.97) translateY(1.5%);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes search-results-exit {
+    to {
+      transform: scale(0.98) translateY(1%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes search-setup-enter {
+    from {
+      transform: scale(1.02) translateY(-1%);
+      opacity: 0;
+    }
+  }
+
+  .search-fallback-launch {
+    animation: search-results-enter 0.58s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .search-fallback-return {
+    animation: search-setup-enter 0.52s cubic-bezier(0.32, 0.72, 0, 1) both;
   }
 
   .glass-panel {

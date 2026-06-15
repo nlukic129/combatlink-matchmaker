@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import { RouterError, RouterPending } from "@/components/router-fallbacks";
+import { navViewTransition } from "@/lib/nav-transitions";
 import { routeTree } from "./routeTree.gen";
 
 export const getRouter = () => {
@@ -20,6 +21,7 @@ export const getRouter = () => {
     defaultPreloadStaleTime: 0,
     defaultPendingComponent: RouterPending,
     defaultErrorComponent: RouterError,
+    defaultViewTransition: navViewTransition,
   });
 
   return router;

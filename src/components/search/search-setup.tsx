@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Check, Loader2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { searchLaunchViewTransition } from "@/lib/nav-transitions";
 import { Button } from "@/components/ui/button";
 import { WireframeGlobe } from "@/components/search/wireframe-globe";
 import type { SearchSetupParams } from "@/lib/search-schema";
@@ -79,20 +80,28 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
         page: 1,
         view: "list",
       },
+      viewTransition: searchLaunchViewTransition,
     });
   }
 
   return (
-    <div className="search-setup relative flex h-[calc(100dvh-3.5rem)] min-h-0 flex-1 overflow-hidden">
+    <div className="search-setup search-content-vt relative flex h-[calc(100dvh-3.5rem)] min-h-0 flex-1 overflow-hidden">
 
-      {/* Globe — discreet right-side rotating accent */}
-      <div className="search-setup-globe-accent pointer-events-none absolute z-0" aria-hidden>
-        <WireframeGlobe />
-      </div>
+      {/*
+        Stage: mx-auto + max-w centers the form+globe unit horizontally.
+        flex-col + justify-center + min-h-full centers content vertically.
+        overflow-visible at lg lets the absolute globe bleed beyond stage edges.
+        Globe inside stage so right:-30px follows stage right edge (not viewport).
+      */}
+      <div className="search-setup-stage relative z-10 mx-auto flex min-h-full w-full max-w-full flex-col justify-center overflow-y-auto overscroll-contain px-6 py-10 sm:px-10 sm:py-12 lg:max-w-[1020px] lg:overflow-visible lg:px-0 lg:py-0 xl:max-w-[1160px]">
 
-      {/* Form panel */}
-      <div className="relative z-10 flex min-h-full w-full flex-col overflow-y-auto overscroll-contain">
-        <div className="flex min-h-full flex-col justify-center px-6 py-10 sm:px-10 sm:py-12 lg:max-w-[500px] lg:pl-14 xl:pl-16">
+        {/* Globe — absolute within stage */}
+        <div className="search-setup-globe-accent pointer-events-none absolute z-0" aria-hidden>
+          <WireframeGlobe />
+        </div>
+
+        {/* Form content */}
+        <div className="relative z-10 w-full lg:w-[420px] lg:pl-10 xl:w-[460px] xl:pl-12">
 
           <header className="search-setup-header mb-10 lg:mb-12">
             <p className="search-setup-eyebrow">Global Matchmaking</p>
