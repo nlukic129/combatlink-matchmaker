@@ -39,7 +39,7 @@ function SearchPage() {
         </div>
       </div>
 
-      {filters.fighter && <FighterDrawer fighterId={filters.fighter} />}
+      {filters.fighter && <FighterDrawer fighterId={filters.fighter} activeSport={filters.sport} />}
     </div>
   );
 }

@@ -11,10 +11,10 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import type { Fighter } from "@/types/database";
+import type { SearchFighter } from "@/types/database";
 import type { SearchFilters } from "@/lib/search-schema";
 
-const EMPTY_FIGHTERS: Fighter[] = [];
+const EMPTY_FIGHTERS: SearchFighter[] = [];
 
 const PAGE_SIZE = 20;
 
@@ -77,7 +77,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   }, [filters.view]);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {isLoading ? (
@@ -106,9 +106,11 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
       </div>
 
       {isLoading && view !== "map" ? (
-        <SkeletonList />
+        <div className="fc-list-shell relative flex min-h-0 flex-1 flex-col">
+          <SkeletonList />
+        </div>
       ) : (
-        <div className="relative min-h-0 flex-1">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           {mapEverOpened && (
             <div
               className={cn(
@@ -137,9 +139,9 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
           )}
 
           {view === "list" ? (
-            <>
-              <div className="relative z-10 flex h-full flex-col bg-background">
-                <div className="flex-1 space-y-2.5 overflow-y-auto p-5 scrollbar-thin">
+            <div className="fc-list-shell absolute inset-0 z-10 flex min-h-0 flex-col bg-background">
+              <div className="fc-list-scroll scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <div className="fc-list-inner">
                   {data?.exact.map((f) => (
                     <FighterCard
                       key={f.id}
@@ -166,55 +168,57 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
 
                   {data?.exact.length === 0 && !data?.nearMatch.length && <EmptyResults />}
                 </div>
-
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-3 border-t border-border py-4">
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={() => setPage(page - 1)}
-                      disabled={page <= 1}
-                      aria-label="Previous page"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      Page <span className="font-medium text-foreground">{page}</span> of {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      onClick={() => setPage(page + 1)}
-                      disabled={page >= totalPages}
-                      aria-label="Next page"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
               </div>
-            </>
+
+              {totalPages > 1 && (
+                <div className="fc-list-pagination">
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => setPage(page - 1)}
+                    disabled={page <= 1}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page <span className="font-medium text-foreground">{page}</span> of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    onClick={() => setPage(page + 1)}
+                    disabled={page >= totalPages}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
+              {compareIds.length > 0 && (
+                <CompareBar
+                  ids={compareIds}
+                  onRemove={(id) => setCompareIds((p) => p.filter((x) => x !== id))}
+                />
+              )}
+            </div>
           ) : !mapEverOpened ? (
             <MapLoader />
           ) : null}
         </div>
       )}
 
-      {compareIds.length > 0 && (
-        <CompareBar ids={compareIds} onRemove={(id) => setCompareIds((p) => p.filter((x) => x !== id))} />
-      )}
     </div>
   );
 }
 
 function NearMatchDivider({ count }: { count: number }) {
   return (
-    <div className="flex items-center gap-4 py-4">
-      <div className="h-px flex-1 bg-border" />
-      <span className="shrink-0 rounded-full border border-border bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground">
-        {count} near {count === 1 ? "match" : "matches"} — slightly outside your filters
+    <div className="fc-divider">
+      <span className="fc-divider-label">
+        {count} near {count === 1 ? "match" : "matches"}
       </span>
-      <div className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -239,20 +243,25 @@ function MapLoader() {
 
 function SkeletonList() {
   return (
-    <div className="space-y-2.5 p-5">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-4"
-        >
-          <div className="h-14 w-14 shrink-0 rounded-full shimmer" />
-          <div className="flex-1 space-y-2.5">
-            <div className="h-4 w-36 rounded-md shimmer" />
-            <div className="h-3 w-24 rounded-md shimmer" />
+    <div className="fc-list-scroll scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+      <div className="fc-list-inner">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className="fc-skeleton">
+            <div className="fc-skeleton-photo shimmer" />
+            <div className="fc-skeleton-main">
+              <div className="h-5 w-44 rounded-md shimmer" />
+              <div className="flex gap-2">
+                <div className="h-3 w-16 rounded-full shimmer" />
+                <div className="h-3 w-20 rounded-md shimmer" />
+              </div>
+            </div>
+            <div className="fc-skeleton-stats">
+              <div className="h-5 w-20 rounded-md shimmer" />
+              <div className="h-2.5 w-12 rounded-md shimmer" />
+            </div>
           </div>
-          <div className="h-6 w-20 rounded-full shimmer" />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

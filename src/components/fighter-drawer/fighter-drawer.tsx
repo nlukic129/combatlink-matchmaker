@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -8,12 +8,16 @@ import { Button } from "@/components/ui/button";
 import { FighterDrawerContent } from "./fighter-drawer-content";
 import type { Fighter } from "@/types/database";
 
+const CLOSE_MS = 260;
+
 type Props = {
   fighterId: string;
+  activeSport?: string | null;
 };
 
-export function FighterDrawer({ fighterId }: Props) {
+export function FighterDrawer({ fighterId, activeSport }: Props) {
   const navigate = useNavigate({ from: "/search" });
+  const [isClosing, setIsClosing] = useState(false);
 
   const { data: fighter, isLoading } = useQuery<Fighter | null>({
     queryKey: ["fighter-detail", fighterId],
@@ -30,14 +34,18 @@ export function FighterDrawer({ fighterId }: Props) {
   });
 
   function close() {
-    navigate({
-      search: (p) => {
-        const next = { ...p };
-        delete next.fighter;
-        return next;
-      },
-      replace: true,
-    });
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      navigate({
+        search: (p) => {
+          const next = { ...p };
+          delete next.fighter;
+          return next;
+        },
+        replace: true,
+      });
+    }, CLOSE_MS);
   }
 
   useEffect(() => {
@@ -48,18 +56,29 @@ export function FighterDrawer({ fighterId }: Props) {
 
   return (
     <>
+      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+        className={cn(
+          "fixed inset-0 z-40 bg-black/70 backdrop-blur-sm",
+          isClosing
+            ? "animate-out fade-out"
+            : "animate-in fade-in duration-200"
+        )}
+        style={isClosing ? { animationDuration: `${CLOSE_MS}ms`, animationFillMode: "both" } : undefined}
         onClick={close}
         aria-hidden
       />
 
+      {/* Drawer panel */}
       <aside
         className={cn(
-          "fixed right-0 top-0 z-50 flex h-dvh w-full max-w-3xl flex-col",
+          "fixed right-0 top-0 z-50 flex h-dvh w-[70vw] flex-col",
           "border-l border-border bg-sidebar shadow-[var(--shadow-elevated)]",
-          "animate-in slide-in-from-right duration-300"
+          isClosing
+            ? "animate-out slide-out-to-right"
+            : "animate-in slide-in-from-right duration-300"
         )}
+        style={isClosing ? { animationDuration: `${CLOSE_MS}ms`, animationFillMode: "both" } : undefined}
         aria-label="Fighter detail"
       >
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -71,11 +90,11 @@ export function FighterDrawer({ fighterId }: Props) {
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <div className="fd-drawer-scroll flex-1 overflow-y-auto scrollbar-thin">
           {isLoading ? (
             <DrawerSkeleton />
           ) : fighter ? (
-            <FighterDrawerContent fighter={fighter} />
+            <FighterDrawerContent fighter={fighter} activeSport={activeSport} />
           ) : (
             <div className="flex h-full items-center justify-center">
               <p className="text-sm text-muted-foreground">Fighter not found</p>

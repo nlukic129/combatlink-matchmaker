@@ -1524,6 +1524,845 @@
     padding: 1px 5px;
     border-radius: 4px;
   }
+
+  /* ══════════════════════════════════════════════════════
+     Fighter list — fc-* horizontal roster rows
+  ══════════════════════════════════════════════════════ */
+
+  .fc-list-shell {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .fc-list-scroll {
+    scroll-padding-block: 8px;
+  }
+
+  .fc-list-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px 18px;
+  }
+
+  .fc-list-pagination {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border-top: 1px solid oklch(1 0 0 / 7%);
+    background: oklch(0.09 0.012 270 / 94%);
+    padding: 11px 16px;
+    backdrop-filter: blur(12px);
+  }
+
+  .fc-compare-bar {
+    flex-shrink: 0;
+    z-index: 40;
+  }
+
+  .fc-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 4px 8px;
+  }
+
+  .fc-divider::before,
+  .fc-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      oklch(1 0 0 / 10%) 30%,
+      oklch(1 0 0 / 10%) 70%,
+      transparent
+    );
+  }
+
+  .fc-divider-label {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: oklch(0.48 0.012 270);
+  }
+
+  /* ── Card — horizontal row ── */
+
+  .fc-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    align-items: center;
+    gap: 16px;
+    min-height: 96px;
+    padding: 14px 16px 14px 10px;
+    border-radius: 12px;
+    border: 1px solid oklch(1 0 0 / 6%);
+    background: oklch(0.115 0.013 270 / 60%);
+    cursor: pointer;
+    overflow: hidden;
+    transition:
+      background 0.16s ease,
+      border-color 0.16s ease,
+      box-shadow 0.16s ease;
+  }
+
+  .fc-card:hover {
+    background: oklch(0.138 0.014 270 / 95%);
+    border-color: oklch(1 0 0 / 12%);
+    box-shadow: 0 4px 24px oklch(0 0 0 / 26%);
+  }
+
+  .fc-card--selected {
+    background: oklch(0.125 0.014 270);
+    border-color: oklch(0.55 0.24 25 / 42%);
+    box-shadow:
+      0 0 0 1px oklch(0.55 0.24 25 / 18%),
+      0 6px 24px oklch(0 0 0 / 28%);
+  }
+
+  .fc-card--selected:hover {
+    border-color: oklch(0.55 0.24 25 / 55%);
+    box-shadow:
+      0 0 0 1px oklch(0.55 0.24 25 / 28%),
+      0 8px 28px oklch(0 0 0 / 32%);
+  }
+
+  .fc-card--near {
+    opacity: 0.92;
+    border-style: dashed;
+    border-color: oklch(0.72 0.13 82 / 22%);
+  }
+
+  /* Left accent bar — 3px, strong */
+  .fc-card-accent {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    background: oklch(0.20 0.01 270);
+  }
+
+  .fc-card[data-status="available"] .fc-card-accent {
+    background: oklch(0.68 0.19 145);
+    box-shadow: 2px 0 12px oklch(0.68 0.19 145 / 45%);
+  }
+
+  .fc-card[data-status="in_camp"] .fc-card-accent {
+    background: oklch(0.74 0.16 82);
+    box-shadow: 2px 0 10px oklch(0.74 0.16 82 / 35%);
+  }
+
+  .fc-card--near .fc-card-accent {
+    background: oklch(0.72 0.13 82);
+  }
+
+  .fc-card--selected .fc-card-accent {
+    background: oklch(0.55 0.24 25);
+    box-shadow: 2px 0 14px oklch(0.55 0.24 25 / 55%);
+  }
+
+  /* ── Compare slot ── */
+
+  .fc-compare-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition:
+      width 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.15s ease;
+  }
+
+  .fc-card:hover .fc-compare-slot,
+  .fc-compare-slot--open {
+    width: 34px;
+    opacity: 1;
+  }
+
+  .fc-compare {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1.5px solid oklch(0.55 0.24 25 / 35%);
+    background: oklch(0.10 0.012 270);
+    cursor: pointer;
+    transition:
+      border-color 0.14s ease,
+      background 0.14s ease,
+      box-shadow 0.14s ease;
+  }
+
+  .fc-compare-icon {
+    width: 13px;
+    height: 13px;
+    color: oklch(0.88 0.006 270);
+    flex-shrink: 0;
+    pointer-events: none;
+  }
+
+  .fc-compare:hover {
+    border-color: oklch(0.55 0.24 25 / 65%);
+    background: oklch(0.55 0.24 25 / 14%);
+  }
+
+  .fc-compare:hover .fc-compare-icon {
+    color: oklch(0.55 0.24 25);
+  }
+
+  .fc-compare--on {
+    border-color: oklch(0.55 0.24 25);
+    background: oklch(0.55 0.24 25);
+    box-shadow: 0 2px 10px oklch(0.55 0.24 25 / 40%);
+  }
+
+  .fc-compare--on .fc-compare-icon {
+    color: oklch(0.99 0.002 270);
+  }
+
+  .fc-compare--on:hover {
+    background: oklch(0.58 0.22 25);
+    border-color: oklch(0.60 0.22 25);
+  }
+
+  /* ── Photo thumbnail ── */
+
+  .fc-card-photo {
+    position: relative;
+    flex-shrink: 0;
+    width: 56px;
+    height: 72px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: oklch(0.10 0.012 270);
+    border: 1.5px solid oklch(1 0 0 / 8%);
+    transition: border-color 0.16s ease;
+  }
+
+  .fc-card-photo[data-status="available"]   { border-color: oklch(0.68 0.19 145 / 40%); }
+  .fc-card-photo[data-status="in_camp"]     { border-color: oklch(0.74 0.16 82 / 40%); }
+  .fc-card-photo[data-status="unavailable"] { border-color: oklch(1 0 0 / 7%); }
+
+  .fc-card--selected .fc-card-photo {
+    box-shadow: 0 0 0 2px oklch(0.55 0.24 25 / 30%);
+  }
+
+  .fc-card-photo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+    pointer-events: none;
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .fc-card:hover .fc-card-photo-img {
+    transform: scale(1.06);
+  }
+
+  .fc-card-photo-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(165deg, oklch(0.16 0.016 278) 0%, oklch(0.11 0.013 268) 100%);
+  }
+
+  .fc-card-initials {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: oklch(0.32 0.014 270);
+    user-select: none;
+  }
+
+  /* ── Main content ── */
+
+  .fc-card-main {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Name — Bebas Neue display font, large: the core premium signal */
+  .fc-name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    color: oklch(0.97 0.004 270);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .fc-card-row2 {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .fc-near-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: oklch(0.76 0.13 82);
+    border: 1px solid oklch(0.72 0.13 82 / 30%);
+    padding: 1px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .fc-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 9999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .fc-status[data-status="available"] {
+    color: oklch(0.72 0.18 145);
+    background: oklch(0.68 0.19 145 / 10%);
+    border: 1px solid oklch(0.68 0.19 145 / 20%);
+  }
+
+  .fc-status[data-status="in_camp"] {
+    color: oklch(0.78 0.15 82);
+    background: oklch(0.74 0.16 82 / 10%);
+    border: 1px solid oklch(0.74 0.16 82 / 20%);
+  }
+
+  .fc-status[data-status="unavailable"] {
+    color: oklch(0.50 0.011 270);
+    background: oklch(1 0 0 / 4%);
+    border: 1px solid oklch(1 0 0 / 7%);
+  }
+
+  .fc-status-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  .fc-status[data-status="available"] .fc-status-dot {
+    box-shadow: 0 0 5px currentColor;
+  }
+
+  .fc-nickname {
+    font-size: 11px;
+    font-style: italic;
+    color: oklch(0.42 0.012 270);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .fc-row2-sep {
+    display: inline-block;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: oklch(0.28 0.01 270);
+    flex-shrink: 0;
+  }
+
+  .fc-stat-sn {
+    color: oklch(0.68 0.18 145);
+    flex-shrink: 0;
+  }
+
+  /* ── Stats column (right side) ── */
+
+  .fc-card-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    flex-shrink: 0;
+    min-width: 72px;
+  }
+
+  /* W/L/D as individual labeled blocks */
+  .fc-record-blocks {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .fc-stat-block {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 1px;
+  }
+
+  .fc-stat-val {
+    font-family: var(--font-display);
+    font-size: 22px;
+    line-height: 1;
+    color: oklch(0.90 0.005 270);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+  }
+
+  .fc-stat-lbl {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: oklch(0.36 0.012 270);
+    text-transform: uppercase;
+    margin-left: 1px;
+    align-self: flex-end;
+    padding-bottom: 2px;
+  }
+
+  .fc-stat-block--loss .fc-stat-val {
+    color: oklch(0.50 0.012 270);
+  }
+
+  .fc-stat-block--draw .fc-stat-val {
+    color: oklch(0.46 0.012 270);
+  }
+
+  .fc-stat-sep {
+    width: 1px;
+    height: 14px;
+    background: oklch(1 0 0 / 7%);
+    flex-shrink: 0;
+    align-self: center;
+  }
+
+  .fc-purse {
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: oklch(0.46 0.012 270);
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+
+  /* ── Actions ── */
+
+  .fc-card-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  .fc-fav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: oklch(0.44 0.012 270);
+    opacity: 0;
+    cursor: pointer;
+    transition:
+      opacity 0.12s ease,
+      color 0.12s ease,
+      background 0.12s ease;
+  }
+
+  .fc-card:hover .fc-fav,
+  .fc-card:focus-within .fc-fav,
+  .fc-fav--on {
+    opacity: 1;
+  }
+
+  .fc-fav:hover:not(.fc-fav--on) {
+    background: oklch(1 0 0 / 5%);
+    color: oklch(0.55 0.24 25);
+  }
+
+  .fc-fav--on {
+    color: oklch(0.55 0.24 25);
+  }
+
+  .fc-fav--on:hover {
+    color: oklch(0.62 0.22 25);
+    background: oklch(0.55 0.24 25 / 10%);
+  }
+
+  /* ── Skeleton ── */
+
+  .fc-skeleton {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 16px;
+    min-height: 96px;
+    padding: 14px 16px 14px 10px;
+    border-radius: 12px;
+    border: 1px solid oklch(1 0 0 / 5%);
+    background: oklch(0.115 0.013 270 / 40%);
+    overflow: hidden;
+  }
+
+  .fc-skeleton::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    background: oklch(0.20 0.01 270);
+  }
+
+  .fc-skeleton-photo {
+    width: 56px;
+    height: 72px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+
+  .fc-skeleton-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .fc-skeleton-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    min-width: 72px;
+  }
+
+  @media (max-width: 640px) {
+    .fc-list-inner {
+      padding: 8px 8px 14px;
+      gap: 3px;
+    }
+
+    .fc-card {
+      grid-template-columns: auto auto 1fr auto;
+      gap: 12px;
+      min-height: 80px;
+      padding: 12px 12px 12px 8px;
+    }
+
+    .fc-card-photo {
+      width: 48px;
+      height: 62px;
+    }
+
+    .fc-card-stats {
+      display: none;
+    }
+
+    .fc-card-actions {
+      display: none;
+    }
+
+    .fc-name {
+      font-size: 19px;
+    }
+  }
+
+
+
+  /* ── Fighter Drawer — fd-* ──────────────────────────────────── */
+
+  @keyframes fd-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fd-slide-right {
+    from { opacity: 0; transform: translateX(18px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes fd-slide-left {
+    from { opacity: 0; transform: translateX(-18px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .fd-up         { animation: fd-up          260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .fd-slide-right { animation: fd-slide-right 200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .fd-slide-left  { animation: fd-slide-left  200ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Tab bar */
+  .fd-tabs {
+    display: flex;
+    overflow-x: auto;
+    border-bottom: 1px solid oklch(1 0 0 / 6%);
+    padding: 0 20px;
+    gap: 0;
+    scrollbar-width: none;
+  }
+  .fd-tabs::-webkit-scrollbar { display: none; }
+
+  .fd-tab {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: oklch(0.44 0.011 270);
+    cursor: pointer;
+    transition: color 0.14s, border-color 0.14s;
+    flex-shrink: 0;
+    margin-bottom: -1px;
+    letter-spacing: 0.01em;
+  }
+
+  .fd-tab:hover:not(.fd-tab--active) { color: oklch(0.68 0.006 270); }
+
+  .fd-tab--active {
+    color: oklch(0.97 0.004 270);
+    border-bottom-color: oklch(0.55 0.24 25);
+  }
+
+  /* Panel */
+  .fd-panel {
+    padding: 20px 24px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Eyebrow text */
+  .fd-eyebrow {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+    margin-bottom: 10px;
+  }
+
+  /* Booking 2-col grid */
+  .fd-booking-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* Fight list container */
+  .fd-fight-list {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .fd-fight-row {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .fd-fight-row:last-child { border-bottom: none; }
+
+  /* Stat tile grid (About tab) */
+  .fd-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .fd-stat-tile {
+    padding: 14px 12px;
+    text-align: center;
+    background: rgba(255,255,255,0.02);
+    border-right: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .fd-stat-tile:nth-child(even) { border-right: none; }
+  .fd-stat-tile:nth-last-child(-n+2) { border-bottom: none; }
+
+  /* Fights tab layout */
+  .fd-fights-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .fd-fights-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+  .fd-fights-filter-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+  }
+  .fd-fights-filter-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+    flex-shrink: 0;
+  }
+  .fd-fights-divider {
+    width: 1px;
+    height: 26px;
+    background: rgba(255,255,255,0.10);
+    flex-shrink: 0;
+  }
+  .fd-fights-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  @media (min-width: 700px) {
+    .fd-fights-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .fd-fights-filter-bar { gap: 12px 22px; }
+    .fd-fights-divider { height: 30px; }
+  }
+
+  /* Fights tab — full-height layout when active */
+
+  /* 1. Freeze outer drawer scroll */
+  .fd-drawer-scroll:has(.fd-panel--fights) {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 2. Make FighterDrawerContent fill the now-frozen scroll container */
+  .fd-drawer-scroll:has(.fd-panel--fights) > .fd-drawer-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 3. Panel stretches to fill remaining space below hero + tabs */
+  .fd-panel--fights {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 26px;
+  }
+
+  /* 4. Fights layout fills the panel */
+  .fd-panel--fights .fd-fights-layout {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 5. Filter bar doesn't shrink */
+  .fd-panel--fights .fd-fights-filter-bar {
+    flex-shrink: 0;
+  }
+
+  /* 6. Body takes remaining height */
+  .fd-panel--fights .fd-fights-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* 7. On desktop: grid columns stretch to full height; cards inside fill and right scrolls */
+  @media (min-width: 700px) {
+    .fd-panel--fights .fd-fights-body {
+      align-items: stretch;
+      grid-template-rows: 1fr;
+    }
+    .fd-panel--fights .fd-fights-insights-col,
+    .fd-panel--fights .fd-fights-history-col {
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Both cards fill column height and scroll internally */
+    .fd-panel--fights .fd-fights-insights-col > *,
+    .fd-panel--fights .fd-fights-history-col > * {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.12) transparent;
+    }
+    .fd-panel--fights .fd-fights-insights-col > *::-webkit-scrollbar,
+    .fd-panel--fights .fd-fights-history-col > *::-webkit-scrollbar { width: 4px; }
+    .fd-panel--fights .fd-fights-insights-col > *::-webkit-scrollbar-thumb,
+    .fd-panel--fights .fd-fights-history-col > *::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.12);
+      border-radius: 99px;
+    }
+  }
+
+  /* Insight animations (ported from combatlink mk-* set) */
+  @keyframes fd-scale-in {
+    from { opacity: 0; transform: scale(0.82); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  @keyframes fd-bar-grow {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+  }
+  @keyframes fd-arc-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  .fd-scale-in { animation: fd-scale-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .fd-bar-grow { transform-origin: bottom center; animation: fd-bar-grow 520ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .fd-arc-in   { animation: fd-arc-in   480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
 }
 
 /* ── Fighter popup — unlayered so it beats mapbox-gl.css ─ */

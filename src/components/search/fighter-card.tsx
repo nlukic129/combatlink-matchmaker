@@ -1,27 +1,28 @@
-import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Heart, Check, Zap, MapPin } from "lucide-react";
+import { Heart, Check, Plus, Zap } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { cn, formatCurrency } from "@/lib/utils";
-import { AvailabilityBadge } from "@/components/ui/availability-badge";
-import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import type { Fighter } from "@/types/database";
+import type { SearchFighter } from "@/types/database";
 
 type Props = {
-  fighter: Fighter;
+  fighter: SearchFighter;
   nearMatch?: boolean;
   selected?: boolean;
   onToggleCompare?: () => void;
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  available: "Available",
+  in_camp: "In Camp",
+  unavailable: "Unavailable",
 };
 
 export function FighterCard({ fighter, nearMatch, selected, onToggleCompare }: Props) {
   const navigate = useNavigate({ from: "/search" });
   const { matchmaker } = useAuth();
   const qc = useQueryClient();
-  const [hovered, setHovered] = useState(false);
 
   const { data: isFavourite } = useQuery({
     queryKey: ["favourite", fighter.id],
@@ -39,10 +40,7 @@ export function FighterCard({ fighter, nearMatch, selected, onToggleCompare }: P
   const toggleFavourite = useMutation({
     mutationFn: async () => {
       if (isFavourite) {
-        await supabase
-          .from("matchmaker_favourites")
-          .delete()
-          .eq("fighter_id", fighter.id);
+        await supabase.from("matchmaker_favourites").delete().eq("fighter_id", fighter.id);
       } else {
         await supabase.from("matchmaker_favourites").insert({
           matchmaker_id: matchmaker!.id,
@@ -60,105 +58,123 @@ export function FighterCard({ fighter, nearMatch, selected, onToggleCompare }: P
     navigate({ search: (p) => ({ ...p, fighter: fighter.id }), replace: true });
   }
 
-  const fullName = `${fighter.first_name} ${fighter.last_name}`;
+  const status = fighter.availability_status ?? "unavailable";
+  const fullName = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
+  const initials = [fighter.first_name?.[0], fighter.last_name?.[0]].filter(Boolean).join("").toUpperCase();
+  const hasRecord = fighter.pro_w > 0 || fighter.pro_l > 0 || fighter.pro_d > 0;
 
   return (
     <article
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      data-status={status}
       className={cn(
-        "group relative flex cursor-pointer items-center gap-4 rounded-xl border bg-card px-4 py-4",
-        "shadow-[var(--shadow-card)] transition-all duration-150",
-        "hover:border-border hover:bg-surface-hover hover:shadow-[var(--shadow-elevated)]",
-        nearMatch && "border-border/50 opacity-80",
-        selected && "ring-2 ring-primary/50 ring-offset-2 ring-offset-background"
+        "fc-card group",
+        nearMatch && "fc-card--near",
+        selected && "fc-card--selected"
       )}
       onClick={openDetail}
     >
-      {(hovered || selected) && onToggleCompare && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCompare();
-          }}
-          className={cn(
-            "absolute -left-2 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md border transition-all duration-150",
-            selected
-              ? "border-primary bg-primary text-primary-foreground shadow-sm"
-              : "border-border bg-card hover:border-primary hover:bg-primary/10"
-          )}
-          aria-label={selected ? "Remove from comparison" : "Add to comparison"}
-        >
-          {selected && <Check className="h-3.5 w-3.5" />}
-        </button>
+      <div className="fc-card-accent" aria-hidden />
+
+      {onToggleCompare && (
+        <div className={cn("fc-compare-slot", selected && "fc-compare-slot--open")}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
+            className={cn("fc-compare", selected && "fc-compare--on")}
+            aria-label={selected ? "Remove from comparison" : "Add to comparison"}
+            aria-pressed={selected}
+          >
+            {selected ? (
+              <Check className="fc-compare-icon" strokeWidth={2.75} />
+            ) : (
+              <Plus className="fc-compare-icon" strokeWidth={2.5} />
+            )}
+          </button>
+        </div>
       )}
 
-      <Avatar
-        src={fighter.photo_url}
-        alt={fullName}
-        fallback={fighter.first_name?.[0] ?? "?"}
-        size="lg"
-        ring
-      />
-
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-base font-semibold text-foreground">{fullName}</p>
-          {fighter.country && (
-            <span className="shrink-0 rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {fighter.country}
-            </span>
-          )}
-        </div>
-        {fighter.nickname && (
-          <p className="text-sm text-muted-foreground">&ldquo;{fighter.nickname}&rdquo;</p>
-        )}
-        {(fighter.current_city || fighter.current_city_country) && (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3 shrink-0" />
-            {[fighter.current_city, fighter.current_city_country].filter(Boolean).join(", ")}
-          </p>
+      <div className="fc-card-photo" data-status={status}>
+        {fighter.photo_url ? (
+          <img src={fighter.photo_url} alt="" className="fc-card-photo-img" draggable={false} />
+        ) : (
+          <div className="fc-card-photo-fallback">
+            <span className="fc-card-initials">{initials || "?"}</span>
+          </div>
         )}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-2">
-        <AvailabilityBadge status={fighter.availability_status} />
-
-        <div className="flex items-center gap-2">
-          {fighter.purse_usd != null && (
-            <span className="rounded-md bg-muted/60 px-2 py-0.5 text-xs font-semibold text-foreground">
-              {formatCurrency(fighter.purse_usd)}
-            </span>
+      {/* Identity: big name + compact meta row */}
+      <div className="fc-card-main">
+        <h3 className="fc-name">{fullName}</h3>
+        <div className="fc-card-row2">
+          <span className="fc-status" data-status={status}>
+            <span className="fc-status-dot" aria-hidden />
+            {STATUS_LABEL[status] ?? "Unknown"}
+          </span>
+          {fighter.nickname && (
+            <>
+              <span className="fc-row2-sep" aria-hidden />
+              <span className="fc-nickname">&ldquo;{fighter.nickname}&rdquo;</span>
+            </>
           )}
-          {fighter.height_cm && (
-            <span className="text-xs text-muted-foreground">{fighter.height_cm} cm</span>
+          {nearMatch && (
+            <>
+              <span className="fc-row2-sep" aria-hidden />
+              <span className="fc-near-badge">Near match</span>
+            </>
           )}
           {fighter.open_to_short_notice && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-available/10 px-2 py-0.5 text-[11px] font-medium text-available">
-              <Zap className="h-3 w-3" />
-              SN
-            </span>
+            <>
+              <span className="fc-row2-sep" aria-hidden />
+              <Zap className="h-3 w-3 fc-stat-sn" aria-label="Short notice" />
+            </>
           )}
         </div>
       </div>
 
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          toggleFavourite.mutate();
-        }}
-        className={cn(
-          "shrink-0",
-          isFavourite
-            ? "text-primary"
-            : "text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary"
+      {/* Stats column: W/L/D blocks + purse */}
+      <div className="fc-card-stats">
+        {hasRecord && (
+          <div className="fc-record-blocks">
+            <div className="fc-stat-block">
+              <span className="fc-stat-val">{fighter.pro_w}</span>
+              <span className="fc-stat-lbl">W</span>
+            </div>
+            <div className="fc-stat-sep" aria-hidden />
+            <div className="fc-stat-block fc-stat-block--loss">
+              <span className="fc-stat-val">{fighter.pro_l}</span>
+              <span className="fc-stat-lbl">L</span>
+            </div>
+            {fighter.pro_d > 0 && (
+              <>
+                <div className="fc-stat-sep" aria-hidden />
+                <div className="fc-stat-block fc-stat-block--draw">
+                  <span className="fc-stat-val">{fighter.pro_d}</span>
+                  <span className="fc-stat-lbl">D</span>
+                </div>
+              </>
+            )}
+          </div>
         )}
-        aria-label={isFavourite ? "Remove from favourites" : "Add to favourites"}
-      >
-        <Heart className={cn("h-4 w-4", isFavourite && "fill-current")} />
-      </Button>
+        {fighter.purse_usd != null && (
+          <span className="fc-purse">{formatCurrency(fighter.purse_usd)}</span>
+        )}
+      </div>
+
+      <div className="fc-card-actions">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleFavourite.mutate(); }}
+          className={cn("fc-fav", isFavourite && "fc-fav--on")}
+          aria-label={isFavourite ? "Remove from favourites" : "Add to favourites"}
+        >
+          <Heart
+            className="h-4 w-4"
+            strokeWidth={isFavourite ? 0 : 1.5}
+            fill={isFavourite ? "currentColor" : "none"}
+          />
+        </button>
+      </div>
     </article>
   );
 }

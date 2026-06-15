@@ -2,15 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveLocationCountries } from "@/lib/geo/countries";
 import type { SearchFilters } from "@/lib/search-schema";
-import type { Fighter } from "@/types/database";
+import type { SearchFighter } from "@/types/database";
 
 const LIST_PAGE_SIZE = 20;
 /** Map view shows every matching fighter — no pagination. */
 const MAP_PAGE_SIZE = 10_000;
 
 type SearchResult = {
-  exact: Fighter[];
-  nearMatch: Fighter[];
+  exact: SearchFighter[];
+  nearMatch: SearchFighter[];
   total: number;
   page: number;
 };
@@ -87,11 +87,11 @@ async function fetchFighters(filters: SearchFilters): Promise<SearchResult> {
   );
   if (error) throw error;
 
-  const exact = (exactData ?? []) as (Fighter & { total_count: number })[];
+  const exact = (exactData ?? []) as (SearchFighter & { total_count: number })[];
   const total = exact[0]?.total_count ?? 0;
 
   // Near matches — only on page 1
-  let nearMatch: Fighter[] = [];
+  let nearMatch: SearchFighter[] = [];
   const hasAnyFilter =
     filters.purseMax != null ||
     filters.readyToFightOn ||
@@ -114,13 +114,13 @@ async function fetchFighters(filters: SearchFilters): Promise<SearchResult> {
       buildRpcArgs(filters, true)
     );
 
-    nearMatch = ((nearData ?? []) as (Fighter & { total_count: number })[]).filter(
+    nearMatch = ((nearData ?? []) as (SearchFighter & { total_count: number })[]).filter(
       (f) => !exactIds.includes(f.id)
     );
   }
 
   return {
-    exact: exact as Fighter[],
+    exact: exact as SearchFighter[],
     nearMatch,
     total: Number(total),
     page,

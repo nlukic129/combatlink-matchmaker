@@ -378,6 +378,14 @@ export type Tables<T extends keyof Database["public"]["Tables"]> =
   Database["public"]["Tables"][T]["Row"];
 
 export type Fighter = Tables<"fighters">;
+
+/** Fighter as returned by search_fighters RPC — includes aggregated pro record. */
+export type SearchFighter = Fighter & {
+  pro_w: number;
+  pro_l: number;
+  pro_d: number;
+};
+
 export type Matchmaker = Tables<"matchmakers">;
 export type MatchmakerFavourite = Tables<"matchmaker_favourites">;
 export type MatchmakerNotification = Tables<"matchmaker_notifications">;

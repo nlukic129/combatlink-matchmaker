@@ -23,7 +23,7 @@ export function CompareBar({ ids, onRemove }: Props) {
   });
 
   return (
-    <div className="sticky bottom-0 z-40 flex items-center gap-4 border-t border-border glass-panel px-5 py-3.5 shadow-[var(--shadow-elevated)]">
+    <div className="fc-compare-bar flex items-center gap-4 border-t border-border glass-panel px-5 py-3 shadow-[var(--shadow-elevated)]">
       <span className="shrink-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Compare ({ids.length}/4)
       </span>
