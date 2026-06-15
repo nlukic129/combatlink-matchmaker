@@ -15,9 +15,25 @@ type SearchResult = {
   page: number;
 };
 
+/**
+ * Build a stable query key that excludes UI-only fields:
+ * - `fighter` — drawer open/close never affects search results
+ * - `view`    — determines fetch strategy internally, not search criteria
+ * - `page`    — for map queries: always page 1; list queries include it
+ */
+function makeQueryKey(filters: SearchFilters) {
+  const { fighter: _f, view, page, ...criteria } = filters;
+  if (view === "map") {
+    // Map always fetches all results (page 1, MAP_PAGE_SIZE) — page is irrelevant
+    return ["fighters-search", "map", criteria] as const;
+  }
+  // List is paginated — page is part of the cache key
+  return ["fighters-search", "list", { ...criteria, page }] as const;
+}
+
 export function useFighterSearch(filters: SearchFilters) {
   return useQuery<SearchResult>({
-    queryKey: ["fighters-search", filters],
+    queryKey: makeQueryKey(filters),
     enabled: !!filters.sport && !!filters.gender,
     queryFn: () => fetchFighters(filters),
     placeholderData: (prev) => prev,

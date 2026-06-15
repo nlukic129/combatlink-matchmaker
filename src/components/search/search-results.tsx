@@ -11,7 +11,10 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
+import type { Fighter } from "@/types/database";
 import type { SearchFilters } from "@/lib/search-schema";
+
+const EMPTY_FIGHTERS: Fighter[] = [];
 
 const PAGE_SIZE = 20;
 
@@ -48,8 +51,8 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   }
 
   const view = filters.view ?? "list";
-  const mapFighters = data?.exact ?? [];
-  const mapNearMatch = data?.nearMatch;
+  const mapFighters = data?.exact ?? EMPTY_FIGHTERS;
+  const mapNearMatch = data?.nearMatch ?? EMPTY_FIGHTERS;
   const showInitialMapLoader = view === "map" && isLoading && !data;
   const highlightCountries = useMemo(
     () => resolveLocationCountries(filters.countries, filters.continent) ?? undefined,

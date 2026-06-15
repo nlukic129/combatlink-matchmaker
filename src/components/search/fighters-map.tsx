@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useMemo, useCallback, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useMemo, useCallback, useState, memo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useNavigate } from "@tanstack/react-router";
@@ -49,7 +49,7 @@ type Props = {
   visible?: boolean;
 };
 
-export function FightersMap({
+export const FightersMap = memo(function FightersMap({
   fighters,
   nearMatch = [],
   cityLat,
@@ -944,7 +944,7 @@ export function FightersMap({
       </div>
     </div>
   );
-}
+});
 
 function formatRegionLabel(countries: string[]): string {
   if (countries.length <= 3) return countries.join(", ");
