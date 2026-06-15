@@ -4,11 +4,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { useNavigate } from "@tanstack/react-router";
 import { Crosshair, Plus, Minus, X } from "lucide-react";
 import type { Fighter } from "@/types/database";
-import {
-  boundsForFeatures,
-  featuresForCountries,
-  loadCountryBoundaries,
-} from "@/lib/geo/country-boundaries";
+import { boundsForFeatures, featuresForCountries, loadCountryBoundaries } from "@/lib/geo/country-boundaries";
 import { getMapboxToken } from "@/lib/supabase-public-env";
 
 const SOURCE_ID = "fighters";
@@ -17,7 +13,7 @@ const BOUNDARY_SOURCE = "country-boundaries";
 const BOUNDARY_FILL = "country-boundary-fill";
 const BOUNDARY_LINE = "country-boundary-line";
 
-/** Brand red — borders only; fill stays very pale */
+/** Brand red — borders only. Fill stays very pale. */
 const REGION_COLOR = "#E8001D";
 const REGION_FILL_OPACITY = 0.07;
 
@@ -92,11 +88,10 @@ export const FightersMap = memo(function FightersMap({
 
   const entries = useMemo(
     () =>
-      [
-        ...fighters.map((f) => ({ fighter: f, isNear: false })),
-        ...nearMatch.map((f) => ({ fighter: f, isNear: true })),
-      ].filter((e) => e.fighter.current_city_lat && e.fighter.current_city_lng),
-    [fighters, nearMatch]
+      [...fighters.map((f) => ({ fighter: f, isNear: false })), ...nearMatch.map((f) => ({ fighter: f, isNear: true }))].filter(
+        (e) => e.fighter.current_city_lat && e.fighter.current_city_lng,
+      ),
+    [fighters, nearMatch],
   );
 
   const geoJson = useMemo(() => buildGeoJSON(entries), [entries]);
@@ -105,9 +100,9 @@ export const FightersMap = memo(function FightersMap({
     const all = [...fighters, ...nearMatch];
     return {
       total: all.length,
-      available: all.filter(f => f.availability_status === 'available').length,
-      inCamp: all.filter(f => f.availability_status === 'in_camp').length,
-      unavailable: all.filter(f => f.availability_status === 'unavailable').length,
+      available: all.filter((f) => f.availability_status === "available").length,
+      inCamp: all.filter((f) => f.availability_status === "in_camp").length,
+      unavailable: all.filter((f) => f.availability_status === "unavailable").length,
     };
   }, [fighters, nearMatch]);
 
@@ -201,7 +196,7 @@ export const FightersMap = memo(function FightersMap({
         if (activeOrbitRef.current?.key === key) hideOrbit();
       }, HOVER_HIDE_MS);
     },
-    [cancelHideTimer, hideOrbit]
+    [cancelHideTimer, hideOrbit],
   );
 
   const onMarkerEnter = useCallback(
@@ -212,7 +207,7 @@ export const FightersMap = memo(function FightersMap({
       if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = setTimeout(show, HOVER_SHOW_MS);
     },
-    [cancelHideTimer]
+    [cancelHideTimer],
   );
 
   const onMarkerLeave = useCallback(
@@ -220,7 +215,7 @@ export const FightersMap = memo(function FightersMap({
       hoverStateRef.current.marker = false;
       scheduleHideIfNeeded(key);
     },
-    [scheduleHideIfNeeded]
+    [scheduleHideIfNeeded],
   );
 
   const positionOrbit = useCallback((coords: [number, number]) => {
@@ -239,10 +234,7 @@ export const FightersMap = memo(function FightersMap({
       if (!overlay || entries.length === 0) return;
 
       // Already open for this pin — just reposition, don't rebuild (avoids animation loop)
-      if (
-        activeOrbitRef.current?.key === key &&
-        overlay.classList.contains("fm-orbit-overlay--visible")
-      ) {
+      if (activeOrbitRef.current?.key === key && overlay.classList.contains("fm-orbit-overlay--visible")) {
         activeOrbitRef.current.coords = coords;
         positionOrbit(coords);
         return;
@@ -335,7 +327,7 @@ export const FightersMap = memo(function FightersMap({
       overlay.classList.add("fm-orbit-overlay--visible");
       positionOrbit(coords);
     },
-    [positionOrbit]
+    [positionOrbit],
   );
 
   const showClusterOrbit = useCallback(
@@ -360,7 +352,7 @@ export const FightersMap = memo(function FightersMap({
         if (list.length) showOrbit(list, coords, key);
       });
     },
-    [showOrbit]
+    [showOrbit],
   );
 
   const clearAllMarkers = useCallback(() => {
@@ -394,9 +386,7 @@ export const FightersMap = memo(function FightersMap({
 
       if (!marker) {
         const el = createClusterElement(count);
-        marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-          .setLngLat(coords)
-          .addTo(map);
+        marker = new mapboxgl.Marker({ element: el, anchor: "center" }).setLngLat(coords).addTo(map);
 
         // Async: populate avatar photos from cluster leaves
         const geoSrc = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource;
@@ -404,9 +394,7 @@ export const FightersMap = memo(function FightersMap({
           if (err || !leaves || !marker) return;
           const stackEl = marker.getElement().querySelector(".fm-cav-stack") as HTMLElement | null;
           if (!stackEl) return;
-          const clusterEntries = leaves
-            .map((f) => fightersByIdRef.current.get(String(f.properties?.id)))
-            .filter(Boolean) as FighterEntry[];
+          const clusterEntries = leaves.map((f) => fightersByIdRef.current.get(String(f.properties?.id))).filter(Boolean) as FighterEntry[];
           buildCavStack(stackEl, clusterEntries, count, false);
         });
 
@@ -476,18 +464,14 @@ export const FightersMap = memo(function FightersMap({
     // Stack markers (same city / same coords)
     for (const key of visibleStackKeys) {
       const group = byLocation.get(key)!;
-      const stackEntries = group.ids
-        .map((id) => fightersByIdRef.current.get(id))
-        .filter(Boolean) as FighterEntry[];
+      const stackEntries = group.ids.map((id) => fightersByIdRef.current.get(id)).filter(Boolean) as FighterEntry[];
 
       let marker = stackMarkersRef.current.get(key);
 
       if (!marker) {
-        const cityName = stackEntries[0]?.fighter.current_city ?? '';
+        const cityName = stackEntries[0]?.fighter.current_city ?? "";
         const el = createStackElement(stackEntries, cityName);
-        marker = new mapboxgl.Marker({ element: el, anchor: "center" })
-          .setLngLat(group.coords)
-          .addTo(map);
+        marker = new mapboxgl.Marker({ element: el, anchor: "center" }).setLngLat(group.coords).addTo(map);
 
         el.addEventListener("click", () => {
           const orbitKey = `stack-${key}`;
@@ -496,9 +480,7 @@ export const FightersMap = memo(function FightersMap({
           setStackPanelRef.current({ entries: stackEntries, cityName: stackEntries[0]?.fighter.current_city ?? "" });
         });
         el.addEventListener("mouseenter", () => {
-          onMarkerEnter(`stack-${key}`, () =>
-            showOrbit(stackEntries, group.coords, `stack-${key}`)
-          );
+          onMarkerEnter(`stack-${key}`, () => showOrbit(stackEntries, group.coords, `stack-${key}`));
         });
         el.addEventListener("mouseleave", () => onMarkerLeave(`stack-${key}`));
 
@@ -534,29 +516,27 @@ export const FightersMap = memo(function FightersMap({
       if (!marker) {
         const el = createMarkerElement(fighter, isNear);
 
-        const statusLabel = { available: 'Available', in_camp: 'In camp', unavailable: 'Unavailable' }[fighter.availability_status] ?? '';
-        const cityLine = [fighter.current_city, fighter.current_city_country].filter(Boolean).join(', ');
+        const statusLabel = { available: "Available", in_camp: "In camp", unavailable: "Unavailable" }[fighter.availability_status] ?? "";
+        const cityLine = [fighter.current_city, fighter.current_city_country].filter(Boolean).join(", ");
         const popup = new mapboxgl.Popup({
           offset: 46,
           closeButton: false,
-          maxWidth: '240px',
-          className: 'fm-popup',
+          maxWidth: "240px",
+          className: "fm-popup",
         }).setHTML(`
           <div class="fm-popup-body">
-            ${fighter.photo_url ? `<div class="fm-popup-photo" style="background-image:url('${escapeHtml(fighter.photo_url)}')"></div>` : `<div class="fm-popup-photo fm-popup-photo--initials"><span>${escapeHtml(fighter.first_name?.[0]?.toUpperCase() ?? '?')}</span></div>`}
+            ${fighter.photo_url ? `<div class="fm-popup-photo" style="background-image:url('${escapeHtml(fighter.photo_url)}')"></div>` : `<div class="fm-popup-photo fm-popup-photo--initials"><span>${escapeHtml(fighter.first_name?.[0]?.toUpperCase() ?? "?")}</span></div>`}
             <div class="fm-popup-info">
               <p class="fm-popup-name">${escapeHtml(fullName)}</p>
-              ${fighter.nickname ? `<p class="fm-popup-nick">&ldquo;${escapeHtml(fighter.nickname)}&rdquo;</p>` : ''}
-              ${cityLine ? `<p class="fm-popup-loc">${escapeHtml(cityLine)}</p>` : ''}
-              <span class="fm-popup-status" data-status="${fighter.availability_status ?? 'unavailable'}">${escapeHtml(statusLabel)}</span>
-              ${isNear ? `<span class="fm-popup-near">Near match</span>` : ''}
+              ${fighter.nickname ? `<p class="fm-popup-nick">&ldquo;${escapeHtml(fighter.nickname)}&rdquo;</p>` : ""}
+              ${cityLine ? `<p class="fm-popup-loc">${escapeHtml(cityLine)}</p>` : ""}
+              <span class="fm-popup-status" data-status="${fighter.availability_status ?? "unavailable"}">${escapeHtml(statusLabel)}</span>
+              ${isNear ? `<span class="fm-popup-near">Near match</span>` : ""}
             </div>
           </div>
         `);
 
-        marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
-          .setLngLat(coords)
-          .addTo(map);
+        marker = new mapboxgl.Marker({ element: el, anchor: "bottom" }).setLngLat(coords).addTo(map);
 
         el.addEventListener("mouseenter", () => {
           popup.setLngLat(marker!.getLngLat()).addTo(map);
@@ -666,16 +646,18 @@ export const FightersMap = memo(function FightersMap({
 
       // Atmospheric fog
       map.setFog({
-        color: 'rgb(2, 2, 14)',
-        'high-color': 'rgb(4, 4, 20)',
-        'horizon-blend': 0.05,
+        color: "rgb(2, 2, 14)",
+        "high-color": "rgb(4, 4, 20)",
+        "horizon-blend": 0.05,
         range: [0.8, 8],
-        'space-color': 'rgb(2, 2, 14)',
-        'star-intensity': 0,
+        "space-color": "rgb(2, 2, 14)",
+        "star-intensity": 0,
       });
       // Hide visual noise (POI labels)
-      ['poi-label', 'transit-label', 'airport-label', 'natural-point-label', 'water-point-label'].forEach(id => {
-        try { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none'); } catch {}
+      ["poi-label", "transit-label", "airport-label", "natural-point-label", "water-point-label"].forEach((id) => {
+        try {
+          if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
+        } catch {}
       });
     };
 
@@ -779,7 +761,7 @@ export const FightersMap = memo(function FightersMap({
           source: "radius",
           paint: { "fill-color": "#E8001D", "fill-opacity": 0.07 },
         },
-        CLUSTER_LAYER
+        CLUSTER_LAYER,
       );
       map.addLayer(
         {
@@ -788,7 +770,7 @@ export const FightersMap = memo(function FightersMap({
           source: "radius",
           paint: { "line-color": "#E8001D", "line-opacity": 0.45, "line-width": 1.5 },
         },
-        CLUSTER_LAYER
+        CLUSTER_LAYER,
       );
     };
 
@@ -872,7 +854,8 @@ export const FightersMap = memo(function FightersMap({
           <div className="fm-stack-panel-list">
             {stackPanel.entries.map(({ fighter, isNear }) => {
               const fullName = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
-              const statusLabel = { available: "Available", in_camp: "In camp", unavailable: "Unavailable" }[fighter.availability_status ?? "unavailable"] ?? "";
+              const statusLabel =
+                { available: "Available", in_camp: "In camp", unavailable: "Unavailable" }[fighter.availability_status ?? "unavailable"] ?? "";
               return (
                 <button
                   key={fighter.id}
@@ -886,15 +869,11 @@ export const FightersMap = memo(function FightersMap({
                   {fighter.photo_url ? (
                     <img src={fighter.photo_url} alt="" className="fm-stack-panel-photo" draggable={false} />
                   ) : (
-                    <div className="fm-stack-panel-photo fm-stack-panel-photo--ini">
-                      {fighter.first_name?.[0]?.toUpperCase() ?? "?"}
-                    </div>
+                    <div className="fm-stack-panel-photo fm-stack-panel-photo--ini">{fighter.first_name?.[0]?.toUpperCase() ?? "?"}</div>
                   )}
                   <div className="fm-stack-panel-info">
                     <p className="fm-stack-panel-name">{fullName}</p>
-                    {fighter.nickname && (
-                      <p className="fm-stack-panel-nick">&ldquo;{fighter.nickname}&rdquo;</p>
-                    )}
+                    {fighter.nickname && <p className="fm-stack-panel-nick">&ldquo;{fighter.nickname}&rdquo;</p>}
                     <span className="fm-stack-panel-status" data-status={fighter.availability_status ?? "unavailable"}>
                       {statusLabel}
                     </span>
@@ -920,13 +899,7 @@ export const FightersMap = memo(function FightersMap({
           <Crosshair className="h-3.5 w-3.5" />
         </button>
         <div className="fm-ctrl-sep" />
-        <button
-          type="button"
-          className="fm-ctrl-btn"
-          onClick={() => mapRef.current?.zoomIn({ duration: 250 })}
-          title="Zoom in"
-          aria-label="Zoom in"
-        >
+        <button type="button" className="fm-ctrl-btn" onClick={() => mapRef.current?.zoomIn({ duration: 250 })} title="Zoom in" aria-label="Zoom in">
           <Plus className="h-3.5 w-3.5" />
         </button>
         <button
@@ -1001,7 +974,7 @@ function syncBoundaryLayers(map: mapboxgl.Map, data: GeoJSON.FeatureCollection) 
           "fill-antialias": true,
         },
       },
-      beforeId
+      beforeId,
     );
   }
 
@@ -1018,20 +991,10 @@ function syncBoundaryLayers(map: mapboxgl.Map, data: GeoJSON.FeatureCollection) 
         paint: {
           "line-color": REGION_COLOR,
           "line-opacity": 0.9,
-          "line-width": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            3,
-            1.25,
-            6,
-            1.75,
-            10,
-            2.5,
-          ],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 3, 1.25, 6, 1.75, 10, 2.5],
         },
       },
-      beforeId
+      beforeId,
     );
   }
 
@@ -1041,11 +1004,7 @@ function syncBoundaryLayers(map: mapboxgl.Map, data: GeoJSON.FeatureCollection) 
   map.setLayoutProperty(BOUNDARY_LINE, "line-cap", "round");
   map.setPaintProperty(BOUNDARY_LINE, "line-color", REGION_COLOR);
   map.setPaintProperty(BOUNDARY_LINE, "line-opacity", 0.9);
-  map.setPaintProperty(
-    BOUNDARY_LINE,
-    "line-width",
-    ["interpolate", ["linear"], ["zoom"], 3, 1.25, 6, 1.75, 10, 2.5]
-  );
+  map.setPaintProperty(BOUNDARY_LINE, "line-width", ["interpolate", ["linear"], ["zoom"], 3, 1.25, 6, 1.75, 10, 2.5]);
 }
 
 function locationKey(coords: [number, number]): string {
@@ -1070,12 +1029,7 @@ function buildGeoJSON(entries: FighterEntry[]): GeoJSON.FeatureCollection {
   };
 }
 
-function buildCavStack(
-  stack: HTMLElement,
-  fighters: FighterEntry[],
-  count: number,
-  showStatus: boolean
-) {
+function buildCavStack(stack: HTMLElement, fighters: FighterEntry[], count: number, showStatus: boolean) {
   stack.innerHTML = "";
   const visibleFighters = fighters.slice(0, 2);
 
@@ -1196,11 +1150,7 @@ function createMarkerElement(fighter: Fighter, isNear: boolean): HTMLElement {
 }
 
 function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function createCircleGeoJSON(center: [number, number], radiusKm: number) {
@@ -1211,14 +1161,13 @@ function createCircleGeoJSON(center: [number, number], radiusKm: number) {
   for (let i = 0; i < points; i++) {
     const angle = (i / points) * 2 * Math.PI;
     const lat = Math.asin(
-      Math.sin((center[1] * Math.PI) / 180) * Math.cos(distRad) +
-        Math.cos((center[1] * Math.PI) / 180) * Math.sin(distRad) * Math.cos(angle)
+      Math.sin((center[1] * Math.PI) / 180) * Math.cos(distRad) + Math.cos((center[1] * Math.PI) / 180) * Math.sin(distRad) * Math.cos(angle),
     );
     const lng =
       (center[0] * Math.PI) / 180 +
       Math.atan2(
         Math.sin(angle) * Math.sin(distRad) * Math.cos((center[1] * Math.PI) / 180),
-        Math.cos(distRad) - Math.sin((center[1] * Math.PI) / 180) * Math.sin(lat)
+        Math.cos(distRad) - Math.sin((center[1] * Math.PI) / 180) * Math.sin(lat),
       );
     coords.push([(lng * 180) / Math.PI, (lat * 180) / Math.PI]);
   }
