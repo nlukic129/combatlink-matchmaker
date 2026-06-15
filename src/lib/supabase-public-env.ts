@@ -3,6 +3,8 @@ declare global {
     __COMBATLINK_PUBLIC_ENV__?: {
       url: string;
       key: string;
+      mapboxToken?: string;
+      geoapifyKey?: string;
     };
   }
 }
@@ -17,6 +19,8 @@ function readFromProcess():
   | {
       url: string;
       key: string;
+      mapboxToken?: string;
+      geoapifyKey?: string;
     }
   | undefined {
   const env = readRuntimeEnv();
@@ -26,15 +30,34 @@ function readFromProcess():
   const key = env.VITE_SUPABASE_PUBLISHABLE_KEY ?? env.SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) return undefined;
-  return { url, key };
+  return {
+    url,
+    key,
+    mapboxToken: env.VITE_MAPBOX_TOKEN ?? env.MAPBOX_TOKEN,
+    geoapifyKey: env.VITE_GEOAPIFY_KEY ?? env.GEOAPIFY_KEY,
+  };
 }
 
-/** Inline script for SSR: exposes public Supabase config to the browser at runtime. */
+/** Inline script for SSR: exposes public env to the browser at runtime. */
 export function buildSupabasePublicEnvScript(): string | null {
   const config = readFromProcess();
   if (!config) return null;
 
   return `window.__COMBATLINK_PUBLIC_ENV__=${JSON.stringify(config)};`;
+}
+
+export function getMapboxToken(): string | undefined {
+  if (typeof window !== "undefined" && window.__COMBATLINK_PUBLIC_ENV__?.mapboxToken) {
+    return window.__COMBATLINK_PUBLIC_ENV__.mapboxToken;
+  }
+  return (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ?? readFromProcess()?.mapboxToken;
+}
+
+export function getGeoapifyKey(): string | undefined {
+  if (typeof window !== "undefined" && window.__COMBATLINK_PUBLIC_ENV__?.geoapifyKey) {
+    return window.__COMBATLINK_PUBLIC_ENV__.geoapifyKey;
+  }
+  return (import.meta.env.VITE_GEOAPIFY_KEY as string | undefined) ?? readFromProcess()?.geoapifyKey;
 }
 
 export function getSupabasePublicEnv(): { url: string; key: string } {

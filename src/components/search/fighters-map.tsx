@@ -9,8 +9,7 @@ import {
   featuresForCountries,
   loadCountryBoundaries,
 } from "@/lib/geo/country-boundaries";
-
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string;
+import { getMapboxToken } from "@/lib/supabase-public-env";
 
 const SOURCE_ID = "fighters";
 const CLUSTER_LAYER = "fighter-clusters-hit";
@@ -601,6 +600,9 @@ export const FightersMap = memo(function FightersMap({
     if (!containerRef.current || mapRef.current) return;
 
     mountedRef.current = true;
+
+    // Set token here (client-side) so window.__COMBATLINK_PUBLIC_ENV__ is already populated
+    mapboxgl.accessToken = getMapboxToken() ?? (import.meta.env.VITE_MAPBOX_TOKEN as string);
 
     const map = new mapboxgl.Map({
       container: containerRef.current,
