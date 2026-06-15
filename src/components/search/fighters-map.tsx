@@ -714,6 +714,23 @@ export const FightersMap = memo(function FightersMap({
       if (!source) return;
 
       hideOrbit();
+
+      // Eagerly evict stale markers before Mapbox re-tiles the new data.
+      // Cluster and stack marker keys are derived from the old tile clustering
+      // and become stale immediately — querySourceFeatures may still return old
+      // cluster IDs for a frame or two after setData, so don't wait for syncMarkers.
+      const newIds = new Set(entries.map((e) => e.fighter.id));
+      for (const [id, marker] of htmlMarkersRef.current) {
+        if (!newIds.has(id)) {
+          marker.remove();
+          htmlMarkersRef.current.delete(id);
+        }
+      }
+      clusterMarkersRef.current.forEach((m) => m.remove());
+      clusterMarkersRef.current.clear();
+      stackMarkersRef.current.forEach((m) => m.remove());
+      stackMarkersRef.current.clear();
+
       source.setData(geoJson);
 
       if (!hasInitialFitRef.current && entries.length > 0 && !highlightCountries?.length) {
@@ -724,8 +741,6 @@ export const FightersMap = memo(function FightersMap({
         hasInitialFitRef.current = true;
         map.fitBounds(bounds, { padding: 80, maxZoom: 10, duration: 600 });
       }
-
-      if (entries.length === 0) clearAllMarkers();
     };
 
     return runWhenMapReady(map, apply);
