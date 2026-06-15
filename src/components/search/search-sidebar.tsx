@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { DatePicker } from "@/components/ui/date-picker";
 import { LocationRegionFilters } from "@/components/search/location-region-filters";
 import type { SearchFilters } from "@/lib/search-schema";
 
@@ -186,11 +187,10 @@ function BookingFilters({ filters }: { filters: SearchFilters }) {
 
         <div>
           <FilterLabel>Ready to fight on</FilterLabel>
-          <input
-            type="date"
-            value={filters.readyToFightOn ?? ""}
-            onChange={(e) => set("readyToFightOn", e.target.value || undefined)}
-            className={inputClass}
+          <DatePicker
+            value={filters.readyToFightOn}
+            onChange={(v) => set("readyToFightOn", v)}
+            minDate={new Date()}
           />
         </div>
 

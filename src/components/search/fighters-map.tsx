@@ -794,8 +794,9 @@ export const FightersMap = memo(function FightersMap({
     return () => {
       cancel();
       // Also remove radius in cleanup so switching city→clear never leaves stale layers
+      // (removeRadiusLayers already guards with getLayer/getSource checks internally)
       const m = mapRef.current;
-      if (m?.isStyleLoaded()) removeRadiusLayers(m);
+      if (m) removeRadiusLayers(m);
     };
   }, [cityLat, cityLng, radiusKm]);
 
@@ -813,17 +814,11 @@ export const FightersMap = memo(function FightersMap({
       <div ref={containerRef} className="h-full w-full" />
       <div ref={orbitOverlayRef} className="fm-orbit-overlay" aria-hidden />
 
-      {/* Region panel */}
+      {/* Region pill */}
       {highlightCountries && highlightCountries.length > 0 && (
-        <div className="fm-region-panel" aria-live="polite">
-          <div className="fm-region-panel-header">
-            <span className="fm-region-dot" aria-hidden />
-            <span className="fm-region-title">Selected region</span>
-          </div>
-          <p className="fm-region-label">{regionLabel ?? formatRegionLabel(highlightCountries)}</p>
-          <p className="fm-region-count">
-            {highlightCountries.length} {highlightCountries.length === 1 ? 'country highlighted' : 'countries highlighted'}
-          </p>
+        <div className="fm-region-pill" aria-live="polite" key={regionLabel}>
+          <span className="fm-region-dot" aria-hidden />
+          <span className="fm-region-name">{regionLabel ?? formatRegionLabel(highlightCountries)}</span>
         </div>
       )}
 
@@ -951,9 +946,18 @@ function formatRegionLabel(countries: string[]): string {
   return `${countries.slice(0, 3).join(", ")} +${countries.length - 3} more`;
 }
 
-/** Run fn when style is ready; returns cleanup that cancels a pending load listener. */
+/**
+ * Run fn when the map is initialized and ready for data/layer modifications.
+ * We use SOURCE_ID existence as the proxy — it's added in onLoad and never
+ * removed, so it's always present after initial setup.
+ *
+ * WHY NOT isStyleLoaded(): it returns false while tiles are loading, which
+ * can happen any time the map is panned/zoomed. Using it would cause
+ * map.once("load", fn) to be registered, but that event never fires again
+ * after the initial load — silently dropping the deferred update.
+ */
 function runWhenMapReady(map: mapboxgl.Map, fn: () => void): () => void {
-  if (map.isStyleLoaded()) {
+  if (map.getSource(SOURCE_ID)) {
     fn();
     return () => {};
   }
