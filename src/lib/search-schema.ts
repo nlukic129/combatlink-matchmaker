@@ -39,6 +39,7 @@ export const searchSchema = z.object({
   reachMaxCm: coercedOptionalNumber,
   minInstagramFollowers: coercedOptionalNumber,
   nationalities: coercedOptionalStringArray,
+  originCountries: coercedOptionalStringArray,
   view: z.enum(["list", "map"]).optional().default("list"),
   page: coercedPage,
 });

@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { DatePicker } from "@/components/ui/date-picker";
 import { LocationRegionFilters } from "@/components/search/location-region-filters";
+import { COUNTRIES } from "@/lib/geo/countries";
 import type { SearchFilters } from "@/lib/search-schema";
 
 const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_KEY as string;
@@ -428,6 +429,7 @@ function LocationFilters({ filters }: { filters: SearchFilters }) {
     setQuery("");
     setSuggestions([]);
     setOpen(false);
+    setOriginQuery("");
     navigate({
       search: (p) => {
         const next = { ...p };
@@ -437,6 +439,7 @@ function LocationFilters({ filters }: { filters: SearchFilters }) {
         delete next.radiusKm;
         delete next.countries;
         delete next.continent;
+        delete next.originCountries;
         return { ...next, page: 1 };
       },
       replace: true,
@@ -447,7 +450,44 @@ function LocationFilters({ filters }: { filters: SearchFilters }) {
     !!filters.cityName,
     !!filters.continent,
     (filters.countries ?? []).length > 0,
+    (filters.originCountries ?? []).length > 0,
   ].filter(Boolean).length;
+
+  const [originQuery, setOriginQuery] = useState("");
+  const [originOpen, setOriginOpen] = useState(false);
+  const originWrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (originWrapperRef.current && !originWrapperRef.current.contains(e.target as Node)) {
+        setOriginOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filteredOriginCountries = COUNTRIES.filter((c) => {
+    const q = originQuery.trim().toLowerCase();
+    return !q || c.toLowerCase().includes(q);
+  }).slice(0, 40);
+
+  const originSelectedSet = new Set(filters.originCountries ?? []);
+
+  function toggleOriginCountry(country: string) {
+    const current = filters.originCountries ?? [];
+    const next = current.includes(country)
+      ? current.filter((c) => c !== country)
+      : [...current, country];
+    navigate({
+      search: (p) => ({
+        ...p,
+        originCountries: next.length ? next : undefined,
+        page: 1,
+      }),
+      replace: true,
+    });
+  }
 
   const [localRadius, setLocalRadius] = useState(filters.radiusKm ?? 500);
   useEffect(() => { setLocalRadius(filters.radiusKm ?? 500); }, [filters.radiusKm]);
@@ -516,6 +556,107 @@ function LocationFilters({ filters }: { filters: SearchFilters }) {
             </div>
           </div>
         )}
+
+        {/* Country of origin */}
+        <div ref={originWrapperRef} className="relative">
+          <FilterLabel>Country of origin</FilterLabel>
+          <button
+            type="button"
+            onClick={() => setOriginOpen((v) => !v)}
+            className={cn(
+              "flex w-full items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-left text-sm transition-colors",
+              "focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/20",
+              (filters.originCountries?.length ?? 0) > 0 ? "text-foreground" : "text-muted-foreground/60"
+            )}
+          >
+            <span className="truncate">
+              {(filters.originCountries?.length ?? 0) > 0
+                ? `${filters.originCountries!.length} ${filters.originCountries!.length === 1 ? "country" : "countries"}`
+                : "Select countries…"}
+            </span>
+            <X
+              className={cn(
+                "h-3.5 w-3.5 shrink-0 opacity-50 transition-opacity",
+                (filters.originCountries?.length ?? 0) === 0 && "invisible"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate({ search: (p) => ({ ...p, originCountries: undefined, page: 1 }), replace: true });
+              }}
+            />
+          </button>
+
+          {originOpen && (
+            <div className="absolute z-50 mt-1.5 w-full overflow-hidden rounded-lg border border-white/[0.08] bg-sidebar/95 shadow-[var(--shadow-elevated)] backdrop-blur-sm">
+              <div className="border-b border-white/[0.06] p-2">
+                <input
+                  type="text"
+                  value={originQuery}
+                  onChange={(e) => setOriginQuery(e.target.value)}
+                  placeholder="Search countries…"
+                  autoComplete="off"
+                  className="w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus-visible:border-primary/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/20"
+                />
+              </div>
+              <ul className="max-h-52 overflow-y-auto scrollbar-thin py-1">
+                {filteredOriginCountries.length === 0 ? (
+                  <li className="px-3 py-2 text-sm text-muted-foreground">No matches</li>
+                ) : (
+                  filteredOriginCountries.map((country) => {
+                    const checked = originSelectedSet.has(country);
+                    return (
+                      <li key={country}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => toggleOriginCountry(country)}
+                          className={cn(
+                            "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-white/[0.04]",
+                            checked && "bg-primary/5 text-foreground"
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                              checked ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background"
+                            )}
+                          >
+                            {checked && (
+                              <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none">
+                                <path d="M2 6l2.5 2.5L10 3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </span>
+                          <span>{country}</span>
+                        </button>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+            </div>
+          )}
+
+          {(filters.originCountries?.length ?? 0) > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {filters.originCountries!.map((country) => (
+                <span
+                  key={country}
+                  className="inline-flex items-center gap-1 rounded-full border border-primary/60 bg-primary/15 px-2.5 py-1 text-[11px] font-medium text-primary"
+                >
+                  {country}
+                  <button
+                    type="button"
+                    onClick={() => toggleOriginCountry(country)}
+                    className="rounded-full p-0.5 opacity-70 hover:opacity-100 transition-opacity"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
       </div>
     </section>
@@ -740,6 +881,7 @@ export function SearchSidebar({
     filters.reachMinCm !== undefined,
     filters.reachMaxCm !== undefined,
     (filters.minInstagramFollowers ?? 0) > 0,
+    (filters.originCountries ?? []).length > 0,
   ].filter(Boolean).length;
 
   function clearAll() {

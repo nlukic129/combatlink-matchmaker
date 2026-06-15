@@ -363,6 +363,7 @@ export type Database = {
           p_reach_max?: number | null;
           p_min_followers?: number | null;
           p_nationalities?: string[] | null;
+          p_origin_countries?: string[] | null;
           p_near_match?: boolean;
           p_page?: number;
           p_page_size?: number;

@@ -74,6 +74,7 @@ function buildRpcArgs(filters: SearchFilters, nearMatch: boolean) {
     p_reach_max:        filters.reachMaxCm ?? null,
     p_min_followers:    filters.minInstagramFollowers ?? null,
     p_nationalities:    filters.nationalities?.length ? filters.nationalities : null,
+    p_origin_countries: filters.originCountries?.length ? filters.originCountries : null,
     p_near_match:       nearMatch,
     p_page:             isMapView ? 1 : (filters.page ?? 1),
     p_page_size:        isMapView ? MAP_PAGE_SIZE : LIST_PAGE_SIZE,
@@ -108,7 +109,8 @@ async function fetchFighters(filters: SearchFilters): Promise<SearchResult> {
     filters.reachMaxCm != null ||
     filters.radiusKm != null ||
     filters.countries?.length ||
-    filters.continent;
+    filters.continent ||
+    filters.originCountries?.length;
 
   if (hasAnyFilter && (isMapView || page === 1)) {
     const exactIds = exact.map((f) => f.id);
