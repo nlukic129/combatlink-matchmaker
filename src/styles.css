@@ -687,7 +687,7 @@
   }
 
   .fm-pin:hover {
-    transform: translateY(-4px) scale(1.08);
+    transform: scale(1.1);
     filter: drop-shadow(0 6px 18px oklch(0 0 0 / 60%));
   }
 
@@ -710,48 +710,58 @@
     opacity: 0.75;
   }
 
-  /* Pulse ring — available only */
+  /* Body — wraps disk + pulse so pulse origin = disk center */
+  .fm-pin-body {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+  }
+
+  /* Pulse ring — centered on body, expands outward from disk center */
   .fm-pin-pulse {
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 42px;
-    height: 42px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    border: 2px solid var(--pin-color, #4ade80);
-    animation: fm-pulse 2.8s ease-out infinite;
+    border: 1.5px solid var(--pin-color, #4ade80);
+    animation: fm-pulse 3s ease-out infinite;
     pointer-events: none;
-    transform: translate(-50%, calc(-50% - 2px));
+    transform: translate(-50%, -50%);
     z-index: -1;
   }
 
   @keyframes fm-pulse {
-    0%   { opacity: 0.7; transform: translate(-50%, calc(-50% - 2px)) scale(1); }
-    80%  { opacity: 0; }
-    100% { opacity: 0; transform: translate(-50%, calc(-50% - 2px)) scale(2.6); }
+    0%   { opacity: 0.45; transform: translate(-50%, -50%) scale(1); }
+    75%  { opacity: 0; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); }
   }
 
   /* Pin disk */
   .fm-pin-disk {
     position: relative;
-    width: 42px;
-    height: 42px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    border: 2.5px solid var(--pin-color, oklch(0.44 0.01 270));
+    border: 1.5px solid var(--pin-color, oklch(0.44 0.01 270));
     background: oklch(0.105 0.013 270);
     overflow: hidden;
     box-shadow:
-      0 2px 10px oklch(0 0 0 / 50%),
-      0 0 0 1.5px oklch(0 0 0 / 35%),
-      0 0 12px var(--pin-glow, transparent);
+      0 1px 6px oklch(0 0 0 / 50%),
+      0 0 0 1px oklch(0 0 0 / 30%),
+      0 0 8px var(--pin-glow, transparent);
     transition: box-shadow 0.15s ease, border-color 0.15s ease;
   }
 
   .fm-pin:hover .fm-pin-disk {
     box-shadow:
-      0 6px 20px oklch(0 0 0 / 55%),
-      0 0 0 2px oklch(1 0 0 / 12%),
-      0 0 20px var(--pin-glow, transparent);
+      0 4px 14px oklch(0 0 0 / 55%),
+      0 0 0 1.5px oklch(1 0 0 / 12%),
+      0 0 14px var(--pin-glow, transparent);
   }
 
   .fm-pin-photo {
@@ -769,7 +779,7 @@
     justify-content: center;
     width: 100%;
     height: 100%;
-    font-size: 15px;
+    font-size: 11px;
     font-weight: 600;
     color: oklch(0.62 0.01 270);
     pointer-events: none;
@@ -777,10 +787,10 @@
 
   .fm-pin-dot {
     position: absolute;
-    bottom: 2px;
-    right: 2px;
-    width: 9px;
-    height: 9px;
+    bottom: 1px;
+    right: 1px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--pin-color, oklch(0.44 0.01 270));
     border: 1.5px solid oklch(0.105 0.013 270);
@@ -790,160 +800,165 @@
   .fm-pin-tip {
     width: 0;
     height: 0;
-    border-left: 6px solid transparent;
-    border-right: 6px solid transparent;
-    border-top: 8px solid var(--pin-color, oklch(0.44 0.01 270));
-    margin-top: -1.5px;
-    filter: drop-shadow(0 2px 3px oklch(0 0 0 / 45%));
-    transition: transform 0.15s ease;
+    border-left: 4.5px solid transparent;
+    border-right: 4.5px solid transparent;
+    border-top: 6px solid var(--pin-color, oklch(0.44 0.01 270));
+    margin-top: -1px;
+    filter: drop-shadow(0 1px 2px oklch(0 0 0 / 40%));
     pointer-events: none;
   }
 
-  .fm-pin:hover .fm-pin-tip {
-    transform: translateY(-4px);
-  }
 
   /* z-index for mapbox markers */
   .fm-map-root .mapboxgl-marker {
     z-index: 1;
   }
 
-  /* ── Cluster markers ─────────────────────────────────── */
-  .fm-cluster {
+  /* ── Shared: stacked avatar chips ───────────────────── */
+
+  /* Wrapper for both cluster and stack */
+  .fm-cluster,
+  .fm-stack {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
     cursor: pointer;
-    transition: transform 0.15s ease;
-    filter: drop-shadow(0 4px 14px oklch(0 0 0 / 55%));
+    filter: drop-shadow(0 3px 12px oklch(0 0 0 / 55%));
+    transition: filter 0.18s ease, transform 0.18s ease;
   }
 
-  .fm-cluster:hover {
-    transform: scale(1.1);
-    filter: drop-shadow(0 6px 20px oklch(0.55 0.24 25 / 45%));
+  .fm-cluster:hover,
+  .fm-stack:hover {
+    transform: translateY(-2px);
+    filter:
+      drop-shadow(0 6px 18px oklch(0 0 0 / 60%))
+      drop-shadow(0 0 10px oklch(0.55 0.24 25 / 30%));
   }
 
-  .fm-cluster-disk {
+  /* Row of overlapping avatar circles */
+  .fm-cav-stack {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+  }
+
+  /* Single avatar chip */
+  .fm-cav {
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    border: 2.5px solid oklch(0.55 0.24 25 / 28%);
+    background: oklch(0.14 0.018 25);
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 38% 38%, oklch(0.64 0.26 25), oklch(0.46 0.22 25));
-    border: 2px solid oklch(1 0 0 / 22%);
     box-shadow:
-      0 1px 0 oklch(1 0 0 / 20%) inset,
-      0 4px 18px oklch(0.55 0.24 25 / 35%),
-      0 0 0 1px oklch(0 0 0 / 30%);
-    transition: box-shadow 0.15s ease, background 0.15s ease;
+      0 2px 10px oklch(0 0 0 / 55%),
+      inset 0 1px 0 oklch(1 0 0 / 6%);
+    transition: margin 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.15s ease;
+    position: relative;
   }
 
-  .fm-cluster[data-tier="md"] .fm-cluster-disk {
-    width: 48px;
-    height: 48px;
+  /* Overlap: each chip after the first overlaps */
+  .fm-cav + .fm-cav {
+    margin-left: -14px;
   }
 
-  .fm-cluster[data-tier="lg"] .fm-cluster-disk {
-    width: 56px;
-    height: 56px;
+  /* Spread on hover */
+  .fm-cluster:hover .fm-cav + .fm-cav,
+  .fm-stack:hover .fm-cav + .fm-cav {
+    margin-left: -4px;
   }
 
-  .fm-cluster:hover .fm-cluster-disk {
-    background: radial-gradient(circle at 38% 38%, oklch(0.68 0.27 25), oklch(0.50 0.24 25));
-    box-shadow:
-      0 1px 0 oklch(1 0 0 / 25%) inset,
-      0 8px 28px oklch(0.55 0.24 25 / 55%),
-      0 0 0 1px oklch(0 0 0 / 30%);
+  /* z-index: later chips appear on top */
+  .fm-cav:nth-child(1) { z-index: 1; }
+  .fm-cav:nth-child(2) { z-index: 2; }
+  .fm-cav:nth-child(3) { z-index: 3; }
+
+  /* Photo inside chip */
+  .fm-cav img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    display: block;
+    pointer-events: none;
   }
 
-  .fm-cluster-count {
+  /* Initials fallback */
+  .fm-cav-initials {
     font-size: 14px;
     font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.03em;
-    color: oklch(0.99 0.003 270);
+    color: oklch(0.72 0.01 270);
     pointer-events: none;
     line-height: 1;
   }
 
-  .fm-cluster[data-tier="md"] .fm-cluster-count { font-size: 15px; }
-  .fm-cluster[data-tier="lg"] .fm-cluster-count { font-size: 16px; }
-
-  /* ── Stack markers (same city) ───────────────────────── */
-  .fm-stack {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    cursor: pointer;
-    filter: drop-shadow(0 3px 10px oklch(0 0 0 / 55%));
-    transition: filter 0.15s ease, transform 0.15s ease;
+  /* Shimmer placeholder (while async loads) */
+  .fm-cav--ph {
+    background: linear-gradient(
+      90deg,
+      oklch(0.14 0.013 270) 0%,
+      oklch(0.20 0.013 270) 50%,
+      oklch(0.14 0.013 270) 100%
+    );
+    background-size: 200% 100%;
+    animation: fm-shimmer 1.4s ease-in-out infinite;
   }
 
-  .fm-stack:hover {
-    transform: translateY(-2px);
-    filter: drop-shadow(0 5px 16px oklch(0.55 0.24 25 / 40%));
+  @keyframes fm-shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
-  .fm-stack-pill {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    max-width: 150px;
-    height: 30px;
-    padding: 0 10px 0 8px;
-    border-radius: 9999px;
-    background: oklch(0.115 0.013 270 / 96%);
-    border: 1.5px solid oklch(1 0 0 / 13%);
-    box-shadow: 0 1px 0 oklch(1 0 0 / 8%) inset, 0 0 0 1px oklch(0 0 0 / 28%);
-    backdrop-filter: blur(10px);
-    transition: border-color 0.15s ease, background 0.15s ease;
+  /* Overflow chip: "+N" — brand red accent */
+  .fm-cav--more {
+    background: linear-gradient(145deg, oklch(0.28 0.10 25), oklch(0.18 0.07 25));
+    border-color: oklch(0.55 0.24 25 / 55%);
+    box-shadow:
+      0 2px 10px oklch(0 0 0 / 55%),
+      0 0 10px oklch(0.55 0.24 25 / 20%);
   }
 
-  .fm-stack:hover .fm-stack-pill {
-    border-color: oklch(0.55 0.24 25 / 45%);
-    background: oklch(0.14 0.016 270 / 97%);
-  }
-
-  .fm-stack-badge {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
-    border-radius: 9999px;
-    background: linear-gradient(160deg, oklch(0.62 0.25 25), oklch(0.50 0.23 25));
-    font-size: 11px;
-    font-weight: 700;
+  .fm-cav-more-label {
+    font-size: 10px;
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
-    color: oklch(0.99 0.002 270);
-    line-height: 1;
+    color: oklch(0.97 0.006 25);
+    letter-spacing: -0.02em;
+    pointer-events: none;
   }
 
-  .fm-stack-sep {
-    width: 1px;
-    height: 13px;
-    background: oklch(1 0 0 / 10%);
-    flex-shrink: 0;
-  }
+  /* Stack availability ring colors */
+  .fm-cav[data-status="available"]   { border-color: #4ade80; }
+  .fm-cav[data-status="in_camp"]     { border-color: #f59e0b; }
+  .fm-cav[data-status="unavailable"] { border-color: oklch(0.22 0.01 270); }
 
-  .fm-stack-city {
-    font-size: 11px;
-    font-weight: 500;
+  /* City label below stack */
+  .fm-stack-label {
+    font-size: 10.5px;
+    font-weight: 600;
     color: oklch(0.88 0.007 270);
+    background: oklch(0.09 0.010 270 / 90%);
+    border: 1px solid oklch(1 0 0 / 10%);
+    padding: 2px 8px;
+    border-radius: 9999px;
+    backdrop-filter: blur(8px);
+    white-space: nowrap;
+    max-width: 110px;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
+    box-shadow: 0 1px 4px oklch(0 0 0 / 35%);
+    transition: border-color 0.15s ease;
   }
 
-  .fm-stack-tip {
-    width: 0;
-    height: 0;
-    border-left: 5.5px solid transparent;
-    border-right: 5.5px solid transparent;
-    border-top: 6px solid oklch(0.115 0.013 270 / 96%);
-    margin-top: -1px;
-    filter: drop-shadow(0 2px 2px oklch(0 0 0 / 30%));
+  .fm-stack:hover .fm-stack-label {
+    border-color: oklch(1 0 0 / 20%);
   }
 
   /* ── Orbit overlay ───────────────────────────────────── */
@@ -955,36 +970,51 @@
     width: 0;
     height: 0;
     pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s ease;
   }
 
   .fm-orbit-overlay--visible {
-    opacity: 1;
+    pointer-events: auto;
   }
 
-  .fm-orbit-ring {
-    --orbit-r: 148px;
+  /* Dark backdrop — masks map beneath orbit */
+  .fm-orbit-backdrop {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: var(--orbit-r);
-    height: var(--orbit-r);
-    margin-left: calc(var(--orbit-r) / -2);
-    margin-top: calc(var(--orbit-r) / -2);
+    width: 230px;
+    height: 230px;
     border-radius: 50%;
-    border: 1.5px solid oklch(0.55 0.24 25 / 22%);
-    background: radial-gradient(circle, oklch(0.55 0.24 25 / 6%) 0%, transparent 70%);
+    transform: translate(-50%, -50%);
+    background: radial-gradient(
+      circle,
+      oklch(0 0 0 / 70%) 0%,
+      oklch(0 0 0 / 50%) 40%,
+      transparent 72%
+    );
     pointer-events: none;
-    animation: fm-orbit-ring-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-    box-shadow: inset 0 0 30px oklch(0.55 0.24 25 / 5%);
+    animation: fm-orbit-backdrop-in 0.22s ease-out;
   }
 
-  @keyframes fm-orbit-ring-in {
-    from { transform: scale(0.5); opacity: 0; }
-    to   { transform: scale(1);   opacity: 1; }
+  @keyframes fm-orbit-backdrop-in {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
 
+  /* Subtle guide ring */
+  .fm-orbit-ring {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 144px;
+    height: 144px;
+    margin-left: -72px;
+    margin-top: -72px;
+    border-radius: 50%;
+    border: 1px dashed oklch(1 0 0 / 10%);
+    pointer-events: none;
+  }
+
+  /* Center nucleus */
   .fm-orbit-center {
     position: absolute;
     left: 50%;
@@ -994,36 +1024,33 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-width: 50px;
-    min-height: 50px;
-    padding: 6px 10px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
-    background: oklch(0.10 0.012 270 / 96%);
-    border: 2px solid oklch(0.55 0.24 25 / 55%);
+    background: oklch(0.14 0.018 25);
+    border: 2.5px solid oklch(0.55 0.24 25 / 60%);
     box-shadow:
-      0 0 0 4px oklch(0.55 0.24 25 / 10%),
-      0 8px 24px oklch(0 0 0 / 50%);
+      0 0 0 5px oklch(0.55 0.24 25 / 10%),
+      0 6px 20px oklch(0 0 0 / 55%),
+      inset 0 1px 0 oklch(1 0 0 / 8%);
     pointer-events: none;
+    animation: fm-orbit-center-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes fm-orbit-center-in {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   }
 
   .fm-orbit-nucleus-count {
-    font-size: 17px;
+    font-size: 20px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: oklch(0.97 0.004 270);
     line-height: 1;
   }
 
-  .fm-orbit-nucleus-label {
-    font-size: 9px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: oklch(0.55 0.014 270);
-    line-height: 1;
-    margin-top: 2px;
-  }
-
+  /* Each orbit item: chip + name stacked */
   .fm-orbit-item-wrap {
     position: absolute;
     left: 50%;
@@ -1031,51 +1058,63 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     transform: translate(calc(-50% + var(--ox, 0px)), calc(-50% + var(--oy, 0px)));
-    animation: fm-orbit-item-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation: fm-orbit-item-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) backwards;
     pointer-events: auto;
+    cursor: pointer;
   }
 
   @keyframes fm-orbit-item-in {
-    from { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
-    to   { opacity: 1; transform: translate(calc(-50% + var(--ox, 0px)), calc(-50% + var(--oy, 0px))); }
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.25);
+    }
+    to {
+      opacity: 1;
+      transform: translate(calc(-50% + var(--ox, 0px)), calc(-50% + var(--oy, 0px)));
+    }
   }
 
+  /* Orbit chip — matches fm-cav exactly */
   .fm-orbit-chip {
-    position: relative;
-    width: 38px;
-    height: 38px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
-    border: 2.5px solid var(--chip-color, oklch(0.55 0.24 25));
-    background: oklch(0.12 0.013 270);
-    box-shadow: 0 3px 12px oklch(0 0 0 / 45%);
+    border: 2.5px solid oklch(0.55 0.24 25 / 28%);
+    background: oklch(0.14 0.018 25);
+    box-shadow:
+      0 3px 12px oklch(0 0 0 / 55%),
+      inset 0 1px 0 oklch(1 0 0 / 6%);
     cursor: pointer;
     overflow: hidden;
-    font-size: 13px;
-    font-weight: 600;
-    color: oklch(0.65 0.01 270);
-    transition: box-shadow 0.15s ease, transform 0.15s ease;
+    font-size: 14px;
+    font-weight: 700;
+    color: oklch(0.72 0.01 270);
+    transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.15s ease;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
   }
+
+  /* Availability borders — same as fm-cav */
+  .fm-orbit-chip[data-status="available"]   { border-color: #4ade80; }
+  .fm-orbit-chip[data-status="in_camp"]     { border-color: #f59e0b; }
+  .fm-orbit-chip[data-status="unavailable"] { border-color: oklch(0.22 0.01 270); }
+  .fm-orbit-chip[data-near="true"]          { border-color: oklch(0.72 0.13 82); opacity: 0.78; }
 
   .fm-orbit-item-wrap:hover {
     z-index: 5;
   }
 
   .fm-orbit-item-wrap:hover .fm-orbit-chip {
-    transform: scale(1.12);
+    transform: scale(1.14);
     box-shadow:
-      0 6px 18px oklch(0 0 0 / 55%),
-      0 0 0 3px var(--chip-color, oklch(0.55 0.24 25));
-  }
-
-  .fm-orbit-chip[data-near="true"] {
-    opacity: 0.72;
-    border-color: oklch(0.72 0.13 82);
+      0 6px 20px oklch(0 0 0 / 60%),
+      0 0 0 2.5px oklch(1 0 0 / 18%),
+      inset 0 1px 0 oklch(1 0 0 / 10%);
   }
 
   .fm-orbit-photo {
@@ -1084,152 +1123,59 @@
     object-fit: cover;
     object-position: center top;
     display: block;
+    pointer-events: none;
   }
 
   .fm-orbit-name {
-    font-size: 9.5px;
+    font-size: 10px;
     font-weight: 600;
-    color: oklch(0.82 0.006 270);
+    color: oklch(0.92 0.006 270);
     white-space: nowrap;
-    max-width: 52px;
+    max-width: 56px;
     overflow: hidden;
     text-overflow: ellipsis;
     pointer-events: none;
     text-align: center;
-    text-shadow: 0 1px 4px oklch(0 0 0 / 80%);
+    text-shadow: 0 1px 5px oklch(0 0 0 / 90%), 0 0 12px oklch(0 0 0 / 60%);
+    transition: color 0.15s ease;
   }
 
+  .fm-orbit-item-wrap:hover .fm-orbit-name {
+    color: oklch(0.99 0.003 270);
+  }
+
+  /* Overflow pill at bottom */
   .fm-orbit-more {
     position: absolute;
     left: 50%;
-    bottom: calc(50% - var(--orbit-r, 148px) / 2 - 6px);
+    top: calc(50% + 90px);
     transform: translateX(-50%);
     font-size: 10px;
     font-weight: 600;
-    color: oklch(0.62 0.014 270);
-    background: oklch(0.11 0.012 270 / 92%);
-    padding: 3px 8px;
+    color: oklch(0.75 0.008 270);
+    background: oklch(0.13 0.015 270 / 92%);
+    padding: 3px 10px;
     border-radius: 9999px;
-    border: 1px solid oklch(1 0 0 / 10%);
-    pointer-events: none;
+    border: 1px solid oklch(1 0 0 / 12%);
+    pointer-events: auto;
+    cursor: pointer;
     white-space: nowrap;
     backdrop-filter: blur(8px);
+    box-shadow: 0 2px 6px oklch(0 0 0 / 35%);
+    animation: fm-orbit-more-in 0.3s ease-out 0.18s backwards;
   }
 
-  /* ── Fighter popup ───────────────────────────────────── */
-  .fm-popup .mapboxgl-popup-content {
-    background: oklch(0.115 0.014 270 / 97%);
-    border: 1px solid oklch(1 0 0 / 11%);
-    border-radius: 12px;
-    padding: 0;
-    overflow: hidden;
-    box-shadow:
-      0 12px 32px oklch(0 0 0 / 55%),
-      inset 0 0 0 1px oklch(1 0 0 / 6%);
-    backdrop-filter: blur(12px);
+  .fm-orbit-more:hover {
+    background: oklch(0.18 0.018 270 / 96%);
+    border-color: oklch(1 0 0 / 20%);
+    color: oklch(0.92 0.004 270);
   }
 
-  .fm-popup .mapboxgl-popup-tip {
-    border-top-color: oklch(0.115 0.014 270 / 97%);
+  @keyframes fm-orbit-more-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
   }
 
-  .fm-popup-body {
-    display: flex;
-    gap: 11px;
-    padding: 12px;
-    font-family: var(--font-sans);
-  }
-
-  .fm-popup-photo {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    border-radius: 8px;
-    background-size: cover;
-    background-position: center top;
-    background-color: oklch(0.16 0.014 270);
-    overflow: hidden;
-  }
-
-  .fm-popup-photo--initials {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    font-weight: 700;
-    color: oklch(0.50 0.01 270);
-  }
-
-  .fm-popup-info {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .fm-popup-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: oklch(0.97 0.004 270);
-    margin: 0;
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .fm-popup-nick {
-    font-size: 11px;
-    color: oklch(0.55 0.014 270);
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  .fm-popup-loc {
-    font-size: 11px;
-    color: oklch(0.60 0.012 270);
-    margin: 2px 0 0;
-    line-height: 1.2;
-  }
-
-  .fm-popup-status {
-    display: inline-block;
-    margin-top: 5px;
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    padding: 2px 7px;
-    border-radius: 9999px;
-    line-height: 1.4;
-  }
-
-  .fm-popup-status[data-status="available"] {
-    background: oklch(0.8 0.18 145 / 15%);
-    color: oklch(0.8 0.18 145);
-    border: 1px solid oklch(0.8 0.18 145 / 30%);
-  }
-
-  .fm-popup-status[data-status="in_camp"] {
-    background: oklch(0.82 0.16 82 / 15%);
-    color: oklch(0.82 0.16 82);
-    border: 1px solid oklch(0.82 0.16 82 / 30%);
-  }
-
-  .fm-popup-status[data-status="unavailable"] {
-    background: oklch(0.45 0.01 270 / 20%);
-    color: oklch(0.58 0.01 270);
-    border: 1px solid oklch(0.45 0.01 270 / 30%);
-  }
-
-  .fm-popup-near {
-    font-size: 10px;
-    font-weight: 500;
-    color: oklch(0.75 0.13 82);
-    margin: 0;
-    display: block;
-    margin-top: 2px;
-  }
 
   /* ── Stats HUD ───────────────────────────────────────── */
   .fm-hud {
@@ -1403,4 +1349,325 @@
     font-size: 11px;
     color: oklch(0.56 0.013 270);
   }
+
+  /* ── Stack panel (all fighters at location) ──────────── */
+  .fm-stack-panel {
+    position: absolute;
+    top: 12px;
+    right: 54px;
+    bottom: 12px;
+    width: 232px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    background: oklch(0.09 0.010 270 / 95%);
+    border: 1px solid oklch(1 0 0 / 10%);
+    border-radius: 14px;
+    backdrop-filter: blur(18px);
+    box-shadow:
+      0 8px 32px oklch(0 0 0 / 55%),
+      inset 0 0 0 1px oklch(1 0 0 / 5%);
+    overflow: hidden;
+    animation: fm-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes fm-panel-in {
+    from { opacity: 0; transform: translateX(10px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  .fm-stack-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 14px 12px 11px;
+    border-bottom: 1px solid oklch(1 0 0 / 7%);
+    flex-shrink: 0;
+  }
+
+  .fm-stack-panel-city {
+    font-size: 13px;
+    font-weight: 700;
+    color: oklch(0.97 0.004 270);
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .fm-stack-panel-count {
+    font-size: 11px;
+    color: oklch(0.50 0.012 270);
+    margin: 3px 0 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fm-stack-panel-close {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: oklch(0.55 0.01 270);
+    background: oklch(1 0 0 / 5%);
+    border: none;
+    cursor: pointer;
+    transition: color 0.12s ease, background 0.12s ease;
+    margin-top: -2px;
+  }
+
+  .fm-stack-panel-close:hover {
+    color: oklch(0.97 0.004 270);
+    background: oklch(1 0 0 / 10%);
+  }
+
+  .fm-stack-panel-list {
+    overflow-y: auto;
+    flex: 1;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    scrollbar-width: thin;
+    scrollbar-color: oklch(1 0 0 / 10%) transparent;
+  }
+
+  .fm-stack-panel-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    transition: background 0.12s ease;
+  }
+
+  .fm-stack-panel-card:hover {
+    background: oklch(1 0 0 / 6%);
+  }
+
+  .fm-stack-panel-photo {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: center top;
+    flex-shrink: 0;
+    border: 1.5px solid oklch(0.55 0.24 25 / 25%);
+    background: oklch(0.14 0.018 25);
+    display: block;
+  }
+
+  .fm-stack-panel-photo--ini {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: oklch(0.58 0.01 270);
+  }
+
+  .fm-stack-panel-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .fm-stack-panel-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: oklch(0.95 0.004 270);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+
+  .fm-stack-panel-nick {
+    font-size: 10px;
+    color: oklch(0.48 0.010 270);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+
+  .fm-stack-panel-status {
+    display: inline-block;
+    margin-top: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 9999px;
+    line-height: 1.5;
+  }
+
+  .fm-stack-panel-status[data-status="available"] {
+    background: oklch(0.8 0.18 145 / 12%);
+    color: oklch(0.8 0.18 145);
+  }
+
+  .fm-stack-panel-status[data-status="in_camp"] {
+    background: oklch(0.82 0.16 82 / 12%);
+    color: oklch(0.82 0.16 82);
+  }
+
+  .fm-stack-panel-status[data-status="unavailable"] {
+    background: oklch(0.38 0.01 270 / 15%);
+    color: oklch(0.50 0.01 270);
+  }
+
+  .fm-stack-panel-near {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 700;
+    color: oklch(0.75 0.13 82);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border: 1px solid oklch(0.72 0.13 82 / 35%);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+}
+
+/* ── Fighter popup — unlayered so it beats mapbox-gl.css ─ */
+.fm-popup {
+  pointer-events: none;
+}
+
+/* Animate the content card, NOT the wrapper — Mapbox positions the wrapper
+   via its own transform; animating it causes the flash-to-wrong-position bug */
+@keyframes fm-popup-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.fm-popup .mapboxgl-popup-content {
+  animation: fm-popup-in 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+  background: oklch(0.09 0.012 270 / 95%);
+  border: 1px solid oklch(1 0 0 / 10%);
+  border-radius: 14px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow:
+    0 20px 48px oklch(0 0 0 / 70%),
+    0 0 0 1px oklch(0 0 0 / 40%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  min-width: 196px;
+}
+
+.fm-popup .mapboxgl-popup-tip {
+  border-top-color: oklch(0.09 0.012 270 / 95%) !important;
+  filter: drop-shadow(0 1px 0 oklch(1 0 0 / 8%));
+}
+
+.fm-popup-body {
+  display: flex;
+  gap: 11px;
+  padding: 12px;
+  align-items: flex-start;
+}
+
+.fm-popup-photo {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center top;
+  background-color: oklch(0.14 0.014 270);
+  border: 1.5px solid oklch(1 0 0 / 12%);
+  overflow: hidden;
+}
+
+.fm-popup-photo--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: oklch(0.46 0.01 270);
+}
+
+.fm-popup-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 2px;
+}
+
+.fm-popup-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: oklch(0.97 0.004 270);
+  margin: 0;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.fm-popup-nick {
+  font-size: 11px;
+  font-style: italic;
+  color: oklch(0.48 0.014 270);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.fm-popup-loc {
+  font-size: 11px;
+  color: oklch(0.52 0.010 270);
+  margin: 3px 0 0;
+  line-height: 1.3;
+}
+
+.fm-popup-status {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  line-height: 1.4;
+}
+
+.fm-popup-status[data-status="available"] {
+  background: oklch(0.8 0.18 145 / 13%);
+  color: oklch(0.78 0.18 145);
+  border: 1px solid oklch(0.8 0.18 145 / 26%);
+}
+
+.fm-popup-status[data-status="in_camp"] {
+  background: oklch(0.82 0.16 82 / 13%);
+  color: oklch(0.82 0.16 82);
+  border: 1px solid oklch(0.82 0.16 82 / 26%);
+}
+
+.fm-popup-status[data-status="unavailable"] {
+  background: oklch(0.45 0.01 270 / 16%);
+  color: oklch(0.52 0.01 270);
+  border: 1px solid oklch(0.45 0.01 270 / 26%);
+}
+
+.fm-popup-near {
+  font-size: 10px;
+  font-weight: 500;
+  color: oklch(0.75 0.13 82);
+  margin: 2px 0 0;
+  display: block;
 }

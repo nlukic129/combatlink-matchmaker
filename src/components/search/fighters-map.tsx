@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useMemo, useCallback, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useNavigate } from "@tanstack/react-router";
-import { Crosshair, Plus, Minus } from "lucide-react";
+import { Crosshair, Plus, Minus, X } from "lucide-react";
 import type { Fighter } from "@/types/database";
 import {
   boundsForFeatures,
@@ -83,6 +83,13 @@ export function FightersMap({
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
   const mountedRef = useRef(true);
+
+  type StackPanel = { entries: FighterEntry[]; cityName: string };
+  const [stackPanel, setStackPanel] = useState<StackPanel | null>(null);
+  const setStackPanelRef = useRef(setStackPanel);
+  setStackPanelRef.current = setStackPanel;
+  /** Key of the orbit that anchors the currently-open stack panel. Null when panel is closed. */
+  const stackPanelOrbitKeyRef = useRef<string | null>(null);
 
   const entries = useMemo(
     () =>
@@ -186,6 +193,8 @@ export function FightersMap({
 
   const scheduleHideIfNeeded = useCallback(
     (key: string) => {
+      // Don't hide while the stack panel is anchored to this orbit
+      if (stackPanelOrbitKeyRef.current === key) return;
       cancelHideTimer();
       hoverTimerRef.current = setTimeout(() => {
         const { marker, orbit } = hoverStateRef.current;
@@ -250,12 +259,17 @@ export function FightersMap({
       const visible = entries.slice(0, ORBIT_MAX_VISIBLE);
       const extra = entries.length - visible.length;
 
+      const backdrop = document.createElement("div");
+      backdrop.className = "fm-orbit-backdrop";
+
       const ring = document.createElement("div");
       ring.className = "fm-orbit-ring";
 
       const center = document.createElement("div");
       center.className = "fm-orbit-center";
-      center.innerHTML = `<span class="fm-orbit-nucleus-count">${entries.length}</span><span class="fm-orbit-nucleus-label">fighters</span>`;
+      center.innerHTML = `<span class="fm-orbit-nucleus-count">${entries.length}</span>`;
+
+      overlay.appendChild(backdrop);
 
       overlay.appendChild(ring);
       overlay.appendChild(center);
@@ -277,7 +291,7 @@ export function FightersMap({
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "fm-orbit-chip";
-        btn.style.setProperty("--chip-color", AVAILABILITY_COLOR[fighter.availability_status] ?? AVAILABILITY_COLOR.unavailable);
+        btn.dataset.status = fighter.availability_status ?? "unavailable";
         btn.title = city ? `${fullName} — ${city}` : fullName;
         if (isNear) btn.dataset.near = "true";
 
@@ -309,6 +323,13 @@ export function FightersMap({
         const more = document.createElement("div");
         more.className = "fm-orbit-more";
         more.textContent = `+${extra} more`;
+        more.style.cursor = "pointer";
+        more.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const cityName = entries[0]?.fighter.current_city ?? "";
+          stackPanelOrbitKeyRef.current = activeOrbitRef.current?.key ?? null;
+          setStackPanelRef.current({ entries, cityName });
+        });
         overlay.appendChild(more);
       }
 
@@ -378,6 +399,18 @@ export function FightersMap({
           .setLngLat(coords)
           .addTo(map);
 
+        // Async: populate avatar photos from cluster leaves
+        const geoSrc = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource;
+        geoSrc.getClusterLeaves(clusterId, 2, 0, (err, leaves) => {
+          if (err || !leaves || !marker) return;
+          const stackEl = marker.getElement().querySelector(".fm-cav-stack") as HTMLElement | null;
+          if (!stackEl) return;
+          const clusterEntries = leaves
+            .map((f) => fightersByIdRef.current.get(String(f.properties?.id)))
+            .filter(Boolean) as FighterEntry[];
+          buildCavStack(stackEl, clusterEntries, count, false);
+        });
+
         el.addEventListener("click", () => {
           const source = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource;
           source.getClusterExpansionZoom(clusterId, (err, zoom) => {
@@ -397,13 +430,9 @@ export function FightersMap({
         clusterMarkersRef.current.set(clusterId, marker);
       } else {
         marker.setLngLat(coords);
-        const countEl = marker.getElement().querySelector(".fm-cluster-count");
-        if (countEl) countEl.textContent = String(count);
-        const disk = marker.getElement().querySelector(".fm-cluster-disk");
-        if (disk) {
-          const root = marker.getElement();
-          root.dataset.tier = count >= 25 ? 'lg' : count >= 10 ? 'md' : 'sm';
-        }
+        // Update overflow label count
+        const moreLabel = marker.getElement().querySelector(".fm-cav-more-label");
+        if (moreLabel && count > 2) moreLabel.textContent = `+${count - 2}`;
       }
     }
 
@@ -456,13 +485,16 @@ export function FightersMap({
 
       if (!marker) {
         const cityName = stackEntries[0]?.fighter.current_city ?? '';
-        const el = createStackElement(stackEntries.length, cityName);
+        const el = createStackElement(stackEntries, cityName);
         marker = new mapboxgl.Marker({ element: el, anchor: "center" })
           .setLngLat(group.coords)
           .addTo(map);
 
         el.addEventListener("click", () => {
-          showOrbit(stackEntries, group.coords, `stack-${key}`);
+          const orbitKey = `stack-${key}`;
+          stackPanelOrbitKeyRef.current = orbitKey;
+          showOrbit(stackEntries, group.coords, orbitKey);
+          setStackPanelRef.current({ entries: stackEntries, cityName: stackEntries[0]?.fighter.current_city ?? "" });
         });
         el.addEventListener("mouseenter", () => {
           onMarkerEnter(`stack-${key}`, () =>
@@ -474,8 +506,8 @@ export function FightersMap({
         stackMarkersRef.current.set(key, marker);
       } else {
         marker.setLngLat(group.coords);
-        const badgeEl = marker.getElement().querySelector(".fm-stack-badge");
-        if (badgeEl) badgeEl.textContent = String(stackEntries.length);
+        const moreLabel = marker.getElement().querySelector(".fm-cav-more-label");
+        if (moreLabel && stackEntries.length > 2) moreLabel.textContent = `+${stackEntries.length - 2}`;
       }
     }
 
@@ -506,7 +538,7 @@ export function FightersMap({
         const statusLabel = { available: 'Available', in_camp: 'In camp', unavailable: 'Unavailable' }[fighter.availability_status] ?? '';
         const cityLine = [fighter.current_city, fighter.current_city_country].filter(Boolean).join(', ');
         const popup = new mapboxgl.Popup({
-          offset: 24,
+          offset: 46,
           closeButton: false,
           maxWidth: '240px',
           className: 'fm-popup',
@@ -525,11 +557,18 @@ export function FightersMap({
 
         marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
           .setLngLat(coords)
-          .setPopup(popup)
           .addTo(map);
+
+        el.addEventListener("mouseenter", () => {
+          popup.setLngLat(marker!.getLngLat()).addTo(map);
+        });
+        el.addEventListener("mouseleave", () => {
+          popup.remove();
+        });
 
         el.addEventListener("click", (e) => {
           e.stopPropagation();
+          popup.remove();
           navigateRef.current({
             search: (p) => ({ ...p, fighter: fighter.id }),
             replace: true,
@@ -812,6 +851,65 @@ export function FightersMap({
         </div>
       )}
 
+      {/* Stack panel — all fighters at a location */}
+      {stackPanel && (
+        <div className="fm-stack-panel" key={stackPanel.cityName}>
+          <div className="fm-stack-panel-header">
+            <div>
+              <p className="fm-stack-panel-city">{stackPanel.cityName.split(",")[0].trim()}</p>
+              <p className="fm-stack-panel-count">{stackPanel.entries.length} fighters</p>
+            </div>
+            <button
+              type="button"
+              className="fm-stack-panel-close"
+              onClick={() => {
+                stackPanelOrbitKeyRef.current = null;
+                setStackPanel(null);
+                hideOrbit();
+              }}
+              aria-label="Close panel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="fm-stack-panel-list">
+            {stackPanel.entries.map(({ fighter, isNear }) => {
+              const fullName = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
+              const statusLabel = { available: "Available", in_camp: "In camp", unavailable: "Unavailable" }[fighter.availability_status ?? "unavailable"] ?? "";
+              return (
+                <button
+                  key={fighter.id}
+                  type="button"
+                  className="fm-stack-panel-card"
+                  onClick={() => {
+                    setStackPanel(null);
+                    navigateRef.current({ search: (p) => ({ ...p, fighter: fighter.id }), replace: true });
+                  }}
+                >
+                  {fighter.photo_url ? (
+                    <img src={fighter.photo_url} alt="" className="fm-stack-panel-photo" draggable={false} />
+                  ) : (
+                    <div className="fm-stack-panel-photo fm-stack-panel-photo--ini">
+                      {fighter.first_name?.[0]?.toUpperCase() ?? "?"}
+                    </div>
+                  )}
+                  <div className="fm-stack-panel-info">
+                    <p className="fm-stack-panel-name">{fullName}</p>
+                    {fighter.nickname && (
+                      <p className="fm-stack-panel-nick">&ldquo;{fighter.nickname}&rdquo;</p>
+                    )}
+                    <span className="fm-stack-panel-status" data-status={fighter.availability_status ?? "unavailable"}>
+                      {statusLabel}
+                    </span>
+                  </div>
+                  {isNear && <span className="fm-stack-panel-near">Near</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Custom map controls */}
       <div className="fm-ctrl-group">
         <button
@@ -966,30 +1064,81 @@ function buildGeoJSON(entries: FighterEntry[]): GeoJSON.FeatureCollection {
   };
 }
 
+function buildCavStack(
+  stack: HTMLElement,
+  fighters: FighterEntry[],
+  count: number,
+  showStatus: boolean
+) {
+  stack.innerHTML = "";
+  const visibleFighters = fighters.slice(0, 2);
+
+  // Show up to 2 real fighter chips
+  for (const entry of visibleFighters) {
+    const { fighter } = entry;
+    const chip = document.createElement("div");
+    chip.className = "fm-cav";
+    if (showStatus) chip.dataset.status = fighter.availability_status ?? "unavailable";
+
+    if (fighter.photo_url) {
+      const img = document.createElement("img");
+      img.src = fighter.photo_url;
+      img.alt = "";
+      img.draggable = false;
+      chip.appendChild(img);
+    } else {
+      const ini = document.createElement("span");
+      ini.className = "fm-cav-initials";
+      ini.textContent = fighter.first_name?.[0]?.toUpperCase() ?? "?";
+      chip.appendChild(ini);
+    }
+    stack.appendChild(chip);
+  }
+
+  // Placeholder shimmer chips for loading state
+  const missing = Math.max(0, 2 - visibleFighters.length);
+  for (let i = 0; i < missing; i++) {
+    const ph = document.createElement("div");
+    ph.className = "fm-cav fm-cav--ph";
+    stack.appendChild(ph);
+  }
+
+  // Overflow chip: "+N"
+  if (count > 2) {
+    const more = document.createElement("div");
+    more.className = "fm-cav fm-cav--more";
+    const lbl = document.createElement("span");
+    lbl.className = "fm-cav-more-label";
+    lbl.textContent = `+${count - 2}`;
+    more.appendChild(lbl);
+    stack.appendChild(more);
+  }
+}
+
 function createClusterElement(count: number): HTMLElement {
   const root = document.createElement("div");
   root.className = "fm-cluster";
-  const tier = count >= 25 ? "lg" : count >= 10 ? "md" : "sm";
-  root.dataset.tier = tier;
-  root.innerHTML = `
-    <div class="fm-cluster-disk">
-      <span class="fm-cluster-count">${count}</span>
-    </div>
-  `;
+  const stack = document.createElement("div");
+  stack.className = "fm-cav-stack";
+  buildCavStack(stack, [], count, false);
+  root.appendChild(stack);
   return root;
 }
 
-function createStackElement(count: number, cityName: string): HTMLElement {
+function createStackElement(entries: FighterEntry[], cityName: string): HTMLElement {
   const root = document.createElement("div");
   root.className = "fm-stack";
-  root.innerHTML = `
-    <div class="fm-stack-pill">
-      <span class="fm-stack-badge">${count}</span>
-      <span class="fm-stack-sep"></span>
-      <span class="fm-stack-city">${escapeHtml(cityName.split(',')[0].trim())}</span>
-    </div>
-    <div class="fm-stack-tip"></div>
-  `;
+
+  const stack = document.createElement("div");
+  stack.className = "fm-cav-stack";
+  buildCavStack(stack, entries, entries.length, true);
+
+  const label = document.createElement("span");
+  label.className = "fm-stack-label";
+  label.textContent = cityName.split(",")[0].trim();
+
+  root.appendChild(stack);
+  root.appendChild(label);
   return root;
 }
 
@@ -999,11 +1148,14 @@ function createMarkerElement(fighter: Fighter, isNear: boolean): HTMLElement {
   root.className = "fm-pin";
   root.dataset.status = isNear ? "near" : status;
 
-  // Pulse ring (available only)
+  // Body wraps disk + pulse so pulse is centered on disk, not on the whole pin
+  const body = document.createElement("div");
+  body.className = "fm-pin-body";
+
   if (status === "available" && !isNear) {
     const pulse = document.createElement("div");
     pulse.className = "fm-pin-pulse";
-    root.appendChild(pulse);
+    body.appendChild(pulse);
   }
 
   const disk = document.createElement("div");
@@ -1027,10 +1179,12 @@ function createMarkerElement(fighter: Fighter, isNear: boolean): HTMLElement {
   dot.className = "fm-pin-dot";
   disk.appendChild(dot);
 
+  body.appendChild(disk);
+
   const tip = document.createElement("div");
   tip.className = "fm-pin-tip";
 
-  root.appendChild(disk);
+  root.appendChild(body);
   root.appendChild(tip);
   return root;
 }
