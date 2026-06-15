@@ -53,7 +53,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   const view = filters.view ?? "list";
   const mapFighters = data?.exact ?? EMPTY_FIGHTERS;
   const mapNearMatch = data?.nearMatch ?? EMPTY_FIGHTERS;
-  const showInitialMapLoader = view === "map" && isLoading && !data;
+  const showInitialMapLoader = view === "map" && (isLoading || isFetching) && !data;
   const highlightCountries = useMemo(
     () => resolveLocationCountries(filters.countries, filters.continent) ?? undefined,
     [filters.countries, filters.continent]

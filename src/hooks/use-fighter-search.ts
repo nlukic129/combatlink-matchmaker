@@ -32,11 +32,15 @@ function makeQueryKey(filters: SearchFilters) {
 }
 
 export function useFighterSearch(filters: SearchFilters) {
+  const isMapView = filters.view === "map";
   return useQuery<SearchResult>({
     queryKey: makeQueryKey(filters),
     enabled: !!filters.sport && !!filters.gender,
     queryFn: () => fetchFighters(filters),
-    placeholderData: (prev) => prev,
+    // Map view: no placeholder — stale markers from the previous region must not
+    // stay visible while the new query loads. The map overlay shows instead.
+    // List view: keep previous data so the list never flickers to blank.
+    placeholderData: isMapView ? undefined : (prev) => prev,
   });
 }
 
