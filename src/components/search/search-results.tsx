@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { resolveLocationCountries, CONTINENTS } from "@/lib/geo/countries";
 import { useNavigate } from "@tanstack/react-router";
-import { List, Map, ChevronLeft, ChevronRight, Users, SearchX } from "lucide-react";
+import { List, Map, ChevronLeft, ChevronRight, Users, SearchX, Heart } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { FighterCard } from "./fighter-card";
 import { CompareBar } from "./compare-bar";
@@ -11,6 +12,7 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import type { SearchFighter } from "@/types/database";
 import type { SearchFilters } from "@/lib/search-schema";
 
@@ -21,8 +23,18 @@ const PAGE_SIZE = 20;
 export function SearchResults({ filters }: { filters: SearchFilters }) {
   const navigate = useNavigate({ from: "/search" });
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [savedOnly, setSavedOnly] = useState(false);
 
   const { data, isLoading, isFetching } = useFighterSearch(filters);
+
+  const { data: savedIds } = useQuery({
+    queryKey: ["saved-fighter-ids"],
+    queryFn: async () => {
+      const { data: rows } = await supabase.from("matchmaker_favourites").select("fighter_id");
+      return new Set((rows ?? []).map(r => r.fighter_id as string));
+    },
+    staleTime: 30_000,
+  });
 
   const page = filters.page ?? 1;
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
@@ -51,8 +63,22 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   }
 
   const view = filters.view ?? "list";
-  const mapFighters = data?.exact ?? EMPTY_FIGHTERS;
-  const mapNearMatch = data?.nearMatch ?? EMPTY_FIGHTERS;
+
+  const exactFiltered = useMemo(
+    () => savedOnly && savedIds ? (data?.exact ?? []).filter(f => savedIds.has(f.id)) : (data?.exact ?? EMPTY_FIGHTERS),
+    [data?.exact, savedOnly, savedIds]
+  );
+  const nearFiltered = useMemo(
+    () => savedOnly && savedIds ? (data?.nearMatch ?? []).filter(f => savedIds.has(f.id)) : (data?.nearMatch ?? EMPTY_FIGHTERS),
+    [data?.nearMatch, savedOnly, savedIds]
+  );
+  const savedInResults = useMemo(
+    () => savedIds && data ? [...(data.exact ?? []), ...(data.nearMatch ?? [])].filter(f => savedIds.has(f.id)).length : 0,
+    [data, savedIds]
+  );
+
+  const mapFighters = exactFiltered;
+  const mapNearMatch = nearFiltered;
   const showInitialMapLoader = view === "map" && (isLoading || isFetching) && !data;
   const highlightCountries = useMemo(
     () => resolveLocationCountries(filters.countries, filters.continent) ?? undefined,
@@ -79,17 +105,33 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
           {isLoading ? (
             "Loading fighters…"
           ) : data ? (
             <>
-              <Users className="h-4 w-4" />
-              <span>
-                <span className="font-semibold text-foreground">{data.total.toLocaleString()}</span>
-                {" "}fighters found
-              </span>
-              {isFetching && <Spinner size="sm" />}
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <span>
+                  <span className="font-semibold text-foreground">{data.total.toLocaleString()}</span>
+                  {" "}fighters
+                </span>
+                {isFetching && <Spinner size="sm" />}
+              </div>
+              {savedInResults > 0 && (
+                <button
+                  onClick={() => setSavedOnly(v => !v)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
+                    savedOnly
+                      ? "border-primary/30 bg-primary/10 text-primary"
+                      : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+                  )}
+                >
+                  <Heart className={cn("h-3 w-3", savedOnly && "fill-current")} />
+                  {savedOnly ? `${exactFiltered.length + nearFiltered.length} saved` : `${savedInResults} saved`}
+                </button>
+              )}
             </>
           ) : null}
         </div>
@@ -133,6 +175,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                 highlightCountries={highlightCountries}
                 regionLabel={regionLabel}
                 regionFilterKey={regionFilterKey}
+                savedFighterIds={savedIds}
                 visible={view === "map"}
               />
             </div>
@@ -142,7 +185,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
             <div className="fc-list-shell absolute inset-0 z-10 flex min-h-0 flex-col bg-background">
               <div className="fc-list-scroll scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="fc-list-inner">
-                  {data?.exact.map((f) => (
+                  {exactFiltered.map((f) => (
                     <FighterCard
                       key={f.id}
                       fighter={f}
@@ -151,10 +194,10 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                     />
                   ))}
 
-                  {data?.nearMatch && data.nearMatch.length > 0 && (
+                  {nearFiltered.length > 0 && (
                     <>
-                      <NearMatchDivider count={data.nearMatch.length} />
-                      {data.nearMatch.map((f) => (
+                      <NearMatchDivider count={nearFiltered.length} />
+                      {nearFiltered.map((f) => (
                         <FighterCard
                           key={f.id}
                           fighter={f}
@@ -166,11 +209,21 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                     </>
                   )}
 
-                  {data?.exact.length === 0 && !data?.nearMatch.length && <EmptyResults />}
+                  {exactFiltered.length === 0 && nearFiltered.length === 0 && (
+                    savedOnly ? (
+                      <EmptyState
+                        icon={<Heart className="h-8 w-8" />}
+                        title="No saved fighters in these results"
+                        description="None of your saved fighters match the current search filters."
+                      />
+                    ) : (
+                      <EmptyResults />
+                    )
+                  )}
                 </div>
               </div>
 
-              {totalPages > 1 && (
+              {totalPages > 1 && !savedOnly && (
                 <div className="fc-list-pagination">
                   <Button
                     variant="outline"

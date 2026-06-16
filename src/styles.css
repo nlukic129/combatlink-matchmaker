@@ -787,14 +787,36 @@
 
   .fm-pin-dot {
     position: absolute;
-    bottom: 1px;
-    right: 1px;
-    width: 7px;
-    height: 7px;
+    bottom: -3px;
+    right: -3px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     background: var(--pin-color, oklch(0.44 0.01 270));
-    border: 1.5px solid oklch(0.105 0.013 270);
+    border: 2px solid oklch(0.09 0.012 270);
     pointer-events: none;
+    z-index: 2;
+  }
+
+  .fm-pin-saved {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: oklch(0.55 0.24 25);
+    border: 2px solid oklch(0.09 0.012 270);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .fm-pin-saved svg {
+    display: block;
   }
 
   .fm-pin-tip {
@@ -2016,6 +2038,32 @@
   .fc-fav--on:hover {
     color: oklch(0.62 0.22 25);
     background: oklch(0.55 0.24 25 / 10%);
+  }
+
+  /* ── Favourites card variant ── */
+
+  .fc-card--fav {
+    grid-template-columns: auto 1fr auto;
+    height: 135px;
+    min-height: unset;
+    padding: 16px 14px 16px 16px;
+    overflow: visible;
+  }
+
+  .fc-card--fav .fc-fav {
+    opacity: 1;
+  }
+
+  .fc-card--fav-active {
+    background: oklch(0.13 0.016 25 / 60%);
+    border-color: oklch(0.55 0.24 25 / 40%);
+    box-shadow: 0 0 0 1px oklch(0.55 0.24 25 / 15%), 0 4px 20px oklch(0 0 0 / 24%);
+  }
+
+  .fc-card--fav-active:hover {
+    background: oklch(0.135 0.016 25 / 70%);
+    border-color: oklch(0.55 0.24 25 / 55%);
+    box-shadow: 0 0 0 1px oklch(0.55 0.24 25 / 25%), 0 6px 24px oklch(0 0 0 / 28%);
   }
 
   /* ── Skeleton ── */

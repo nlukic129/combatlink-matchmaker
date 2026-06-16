@@ -248,17 +248,36 @@ export type Database = {
           notify: boolean;
           notified_at: string | null;
           created_at: string;
+          tags: string[];
         };
         Insert: {
           matchmaker_id: string;
           fighter_id: string;
           note?: string | null;
           notify?: boolean;
+          tags?: string[];
         };
         Update: {
           note?: string | null;
           notify?: boolean;
+          tags?: string[];
         };
+        Relationships: [];
+      };
+      matchmaker_favourite_notes: {
+        Row: {
+          id: number;
+          favourite_id: number;
+          matchmaker_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          favourite_id: number;
+          matchmaker_id: string;
+          body: string;
+        };
+        Update: Record<string, never>;
         Relationships: [];
       };
       matchmaker_notifications: {
@@ -389,6 +408,7 @@ export type SearchFighter = Fighter & {
 
 export type Matchmaker = Tables<"matchmakers">;
 export type MatchmakerFavourite = Tables<"matchmaker_favourites">;
+export type MatchmakerFavouriteNote = Tables<"matchmaker_favourite_notes">;
 export type MatchmakerNotification = Tables<"matchmaker_notifications">;
 export type FighterSport = Tables<"fighter_sports">;
 export type WeightClass = Tables<"weight_classes">;

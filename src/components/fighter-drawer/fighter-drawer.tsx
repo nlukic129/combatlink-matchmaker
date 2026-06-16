@@ -13,9 +13,10 @@ const CLOSE_MS = 260;
 type Props = {
   fighterId: string;
   activeSport?: string | null;
+  onClose?: () => void;
 };
 
-export function FighterDrawer({ fighterId, activeSport }: Props) {
+export function FighterDrawer({ fighterId, activeSport, onClose: onCloseProp }: Props) {
   const navigate = useNavigate({ from: "/search" });
   const [isClosing, setIsClosing] = useState(false);
 
@@ -37,14 +38,18 @@ export function FighterDrawer({ fighterId, activeSport }: Props) {
     if (isClosing) return;
     setIsClosing(true);
     setTimeout(() => {
-      navigate({
-        search: (p) => {
-          const next = { ...p };
-          delete next.fighter;
-          return next;
-        },
-        replace: true,
-      });
+      if (onCloseProp) {
+        onCloseProp();
+      } else {
+        navigate({
+          search: (p) => {
+            const next = { ...p };
+            delete next.fighter;
+            return next;
+          },
+          replace: true,
+        });
+      }
     }, CLOSE_MS);
   }
 

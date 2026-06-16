@@ -40,6 +40,7 @@ type Props = {
   regionLabel?: string;
   /** Raw URL filter key — changes on every region filter click */
   regionFilterKey: string;
+  savedFighterIds?: Set<string>;
   /** False when list view hides the map — triggers resize when shown again */
   visible?: boolean;
 };
@@ -53,6 +54,7 @@ export const FightersMap = memo(function FightersMap({
   highlightCountries,
   regionLabel,
   regionFilterKey,
+  savedFighterIds,
   visible = true,
 }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -514,7 +516,7 @@ export const FightersMap = memo(function FightersMap({
 
       let marker = htmlMarkersRef.current.get(id);
       if (!marker) {
-        const el = createMarkerElement(fighter, isNear);
+        const el = createMarkerElement(fighter, isNear, savedFighterIds?.has(fighter.id) ?? false);
 
         const statusLabel = { available: "Available", in_camp: "In camp", unavailable: "Unavailable" }[fighter.availability_status] ?? "";
         const cityLine = [fighter.current_city, fighter.current_city_country].filter(Boolean).join(", ");
@@ -1117,7 +1119,7 @@ function createStackElement(entries: FighterEntry[], cityName: string): HTMLElem
   return root;
 }
 
-function createMarkerElement(fighter: Fighter, isNear: boolean): HTMLElement {
+function createMarkerElement(fighter: Fighter, isNear: boolean, isSaved = false): HTMLElement {
   const status = fighter.availability_status ?? "unavailable";
   const root = document.createElement("div");
   root.className = "fm-pin";
@@ -1150,11 +1152,19 @@ function createMarkerElement(fighter: Fighter, isNear: boolean): HTMLElement {
     disk.appendChild(ini);
   }
 
+  body.appendChild(disk);
+
+  // Badges appended to body (not disk) so overflow:hidden on disk doesn't clip them
   const dot = document.createElement("span");
   dot.className = "fm-pin-dot";
-  disk.appendChild(dot);
+  body.appendChild(dot);
 
-  body.appendChild(disk);
+  if (isSaved) {
+    const saved = document.createElement("div");
+    saved.className = "fm-pin-saved";
+    saved.innerHTML = `<svg viewBox="0 0.5 12 12" fill="currentColor" width="7" height="7" style="display:block"><path d="M6 10.5L1 5.5a3 3 0 0 1 4.243-4.243L6 2.014l.757-.757A3 3 0 0 1 11 5.5L6 10.5z"/></svg>`;
+    body.appendChild(saved);
+  }
 
   const tip = document.createElement("div");
   tip.className = "fm-pin-tip";

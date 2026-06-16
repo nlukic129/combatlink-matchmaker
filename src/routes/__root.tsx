@@ -10,6 +10,7 @@ import {
 import { Toaster } from "sonner";
 
 import { AuthProvider } from "@/contexts/auth-context";
+import { CurrencyProvider } from "@/contexts/currency-context";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/ui/logo";
 import { buildSupabasePublicEnvScript } from "@/lib/supabase-public-env";
@@ -109,8 +110,10 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
-        <Toaster richColors position="top-center" theme="dark" />
+        <CurrencyProvider>
+          <Outlet />
+          <Toaster richColors position="top-center" theme="dark" />
+        </CurrencyProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

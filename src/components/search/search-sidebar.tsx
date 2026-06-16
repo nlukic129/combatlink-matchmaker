@@ -10,6 +10,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { LocationRegionFilters } from "@/components/search/location-region-filters";
 import { COUNTRIES } from "@/lib/geo/countries";
 import { getGeoapifyKey } from "@/lib/supabase-public-env";
+import { useCurrency } from "@/contexts/currency-context";
 import type { SearchFilters } from "@/lib/search-schema";
 
 // ── Shared input style ────────────────────────────────────────────────────────
@@ -174,11 +175,36 @@ function BookingFilters({ filters }: { filters: SearchFilters }) {
     });
   }
 
-  const [localPurse, setLocalPurse] = useState(filters.purseMax ?? 500000);
+  const { currency, setCurrency, toDisplay, toUsd } = useCurrency();
   const [localPrep, setLocalPrep] = useState(filters.maxPrepWeeks ?? 16);
+  const [purseInput, setPurseInput] = useState(() =>
+    filters.purseMax != null ? String(Math.round(toDisplay(filters.purseMax))) : ""
+  );
+  const [sliderVal, setSliderVal] = useState(() => {
+    const max = Math.round(toDisplay(100_000));
+    return filters.purseMax != null ? Math.min(Math.round(toDisplay(filters.purseMax)), max) : max;
+  });
 
-  useEffect(() => { setLocalPurse(filters.purseMax ?? 500000); }, [filters.purseMax]);
   useEffect(() => { setLocalPrep(filters.maxPrepWeeks ?? 16); }, [filters.maxPrepWeeks]);
+
+  useEffect(() => {
+    const max = Math.round(toDisplay(100_000));
+    const display = filters.purseMax != null ? Math.round(toDisplay(filters.purseMax)) : null;
+    setPurseInput(display != null ? String(display) : "");
+    setSliderVal(display != null ? Math.min(display, max) : max);
+  }, [filters.purseMax, currency]);
+
+  function commitPurse(raw: string) {
+    const max = Math.round(toDisplay(100_000));
+    const num = parseFloat(raw.replace(/[^0-9.]/g, ""));
+    if (!raw.trim() || isNaN(num)) {
+      set("purseMax", undefined);
+      setSliderVal(max);
+    } else {
+      set("purseMax", Math.round(toUsd(num)));
+      setSliderVal(Math.min(Math.round(num), max));
+    }
+  }
 
   return (
     <section>
@@ -216,20 +242,71 @@ function BookingFilters({ filters }: { filters: SearchFilters }) {
         </div>
 
         <div>
-          <FilterLabel hint={localPurse < 500000 ? `$${localPurse.toLocaleString()}` : undefined}>
-            Max budget
-          </FilterLabel>
-          <Slider
-            min={0}
-            max={500000}
-            step={5000}
-            value={[localPurse]}
-            onValueChange={([v]) => setLocalPurse(v)}
-            onValueCommit={([v]) => set("purseMax", v < 500000 ? v : undefined)}
-          />
-          <div className="mt-1 flex justify-between text-[10px] text-muted-foreground/50">
-            <span>$0</span>
-            <span>$500k+</span>
+          <div className="mb-1.5 flex items-center justify-between">
+            <FilterLabel>Max budget</FilterLabel>
+            <div className="flex items-center rounded-md border border-white/[0.08] bg-white/[0.04] p-0.5">
+              {(["USD", "EUR"] as const).map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCurrency(c)}
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px] font-semibold transition-all",
+                    currency === c
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground/60">
+              {currency === "EUR" ? "€" : "$"}
+            </span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="No limit"
+              value={purseInput}
+              onChange={e => {
+                setPurseInput(e.target.value);
+                const num = parseFloat(e.target.value.replace(/[^0-9.]/g, ""));
+                const max = Math.round(toDisplay(100_000));
+                if (!isNaN(num)) setSliderVal(Math.min(Math.round(num), max));
+              }}
+              onBlur={e => commitPurse(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && commitPurse(purseInput)}
+              className={cn(inputClass, "pl-7 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none")}
+            />
+          </div>
+          <div className="mt-3">
+            <Slider
+              min={0}
+              max={Math.round(toDisplay(100_000))}
+              step={500}
+              value={[sliderVal]}
+              onValueChange={([v]) => {
+                const max = Math.round(toDisplay(100_000));
+                setSliderVal(v);
+                setPurseInput(v >= max ? "" : String(v));
+              }}
+              onValueCommit={([v]) => {
+                const max = Math.round(toDisplay(100_000));
+                if (v >= max) {
+                  set("purseMax", undefined);
+                } else {
+                  set("purseMax", Math.round(toUsd(v)));
+                }
+              }}
+            />
+            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground/50">
+              <span>{currency === "EUR" ? "€0" : "$0"}</span>
+              <span>No limit</span>
+            </div>
           </div>
         </div>
 
