@@ -9,9 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { DatePicker } from "@/components/ui/date-picker";
 import { LocationRegionFilters } from "@/components/search/location-region-filters";
 import { COUNTRIES } from "@/lib/geo/countries";
+import { getGeoapifyKey } from "@/lib/supabase-public-env";
 import type { SearchFilters } from "@/lib/search-schema";
-
-const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_KEY as string;
 
 // ── Shared input style ────────────────────────────────────────────────────────
 const inputClass =
@@ -368,7 +367,8 @@ function LocationFilters({ filters }: { filters: SearchFilters }) {
   function onInputChange(value: string) {
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!value.trim() || !GEOAPIFY_KEY) {
+    const geoapifyKey = getGeoapifyKey();
+    if (!value.trim() || !geoapifyKey) {
       setSuggestions([]);
       setOpen(false);
       if (!value.trim()) clearCity();
@@ -377,7 +377,7 @@ function LocationFilters({ filters }: { filters: SearchFilters }) {
     debounceRef.current = setTimeout(async () => {
       const url =
         `https://api.geoapify.com/v1/geocode/autocomplete` +
-        `?text=${encodeURIComponent(value)}&type=city&limit=6&apiKey=${GEOAPIFY_KEY}`;
+        `?text=${encodeURIComponent(value)}&type=city&limit=6&apiKey=${geoapifyKey}`;
       const res = await fetch(url);
       const json = await res.json();
       const results: GeoapifySuggestion[] = (json.features ?? []).map((f: any) => ({
