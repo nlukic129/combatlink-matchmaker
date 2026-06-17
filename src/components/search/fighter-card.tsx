@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/contexts/currency-context";
 import { saveFavourite, removeSavedFavourite } from "@/lib/favourite-mutations";
+import { isSavedFavourite } from "@/lib/favourites-schema";
+import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
 import { SaveTagPopup, tagPopupPositionForAnchor } from "@/components/favourites/save-tag-popup";
 import type { SearchFighter } from "@/types/database";
 
@@ -32,16 +34,20 @@ export function FighterCard({ fighter, nearMatch, selected, onToggleCompare }: P
   const wasAddingRef = useRef(false);
   const [tagPopup, setTagPopup] = useState<{ top: number; right: number } | null>(null);
 
+  const { data: hasIsSaved } = useFavouritesSchema();
+
   const { data: isFavourite } = useQuery({
-    queryKey: ["favourite", fighter.id],
-    enabled: !!matchmaker,
+    queryKey: ["favourite", fighter.id, hasIsSaved],
+    enabled: !!matchmaker && hasIsSaved !== undefined,
     queryFn: async () => {
-      const { data } = await supabase
+      const select = hasIsSaved ? "id, is_saved" : "id";
+      const { data, error } = await supabase
         .from("matchmaker_favourites")
-        .select("id, is_saved")
+        .select(select)
         .eq("fighter_id", fighter.id)
         .maybeSingle();
-      return data?.is_saved === true;
+      if (error) throw error;
+      return isSavedFavourite(data, hasIsSaved ?? false);
     },
   });
 

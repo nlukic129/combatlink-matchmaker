@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import type { SearchFighter } from "@/types/database";
 import type { SearchFilters } from "@/lib/search-schema";
+import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
 
 const EMPTY_FIGHTERS: SearchFighter[] = [];
 
@@ -27,14 +28,17 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
 
   const { data, isLoading, isFetching } = useFighterSearch(filters);
 
+  const { data: hasIsSaved } = useFavouritesSchema();
+
   const { data: favouriteIds } = useQuery({
-    queryKey: ["favourite-fighter-ids"],
+    queryKey: ["favourite-fighter-ids", hasIsSaved],
+    enabled: hasIsSaved !== undefined,
     queryFn: async () => {
-      const { data: rows } = await supabase
-        .from("matchmaker_favourites")
-        .select("fighter_id")
-        .eq("is_saved", true);
-      return new Set((rows ?? []).map(r => r.fighter_id as string));
+      let q = supabase.from("matchmaker_favourites").select("fighter_id");
+      if (hasIsSaved) q = q.eq("is_saved", true);
+      const { data: rows, error } = await q;
+      if (error) throw error;
+      return new Set((rows ?? []).map((r) => r.fighter_id as string));
     },
     staleTime: 30_000,
   });

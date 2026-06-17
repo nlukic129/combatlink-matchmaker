@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { tagColor } from "@/lib/tag-utils";
 import { useCurrency } from "@/contexts/currency-context";
+import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
 
 export const Route = createFileRoute("/_app/favourites")({
   component: FavouritesPage,
@@ -71,6 +72,56 @@ type StatusFilter = "all" | "available" | "in_camp" | "unavailable";
 type SortBy = "recent" | "name" | "status";
 const STATUS_ORDER: Record<string, number> = { available: 0, in_camp: 1, unavailable: 2 };
 
+// ── Empty & loading states ─────────────────────────────────────────────────────
+
+function FavouritesLoading() {
+  return (
+    <div className="fav-page">
+      <div className="fav-inner">
+        <header className="fav-header">
+          <p className="cmp-eyebrow">Shortlist</p>
+          <h1 className="fav-title">Favourites</h1>
+        </header>
+        <div className="fav-loading-grid" aria-hidden>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="fav-loading-card" style={{ animationDelay: `${i * 60}ms` }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FavouritesEmpty() {
+  return (
+    <div className="fav-page">
+      <div className="fav-inner fav-inner--empty">
+        <div className="fav-empty">
+          <div className="fav-empty-glow" aria-hidden />
+          <div className="fav-empty-icon">
+            <Heart className="h-8 w-8" strokeWidth={1.5} />
+          </div>
+          <p className="cmp-eyebrow">Shortlist</p>
+          <h2 className="fav-empty-title">No favourites yet</h2>
+          <p className="fav-empty-desc">
+            Save fighters you&apos;re scouting — tag them, add notes, and get notified when they become available.
+          </p>
+          <div className="fav-empty-actions">
+            <Link to="/search" className="fav-empty-cta fav-empty-cta--primary">
+              <Search className="h-4 w-4" />
+              Browse fighters
+            </Link>
+            <Link to="/compare" className="fav-empty-cta">
+              <ArrowLeftRight className="h-4 w-4" />
+              Open compare
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 export function FavouritesPage() {
   const qc = useQueryClient();
@@ -82,10 +133,13 @@ export function FavouritesPage() {
   const [selectedFavIds, setSelectedFavIds] = useState<Set<number>>(new Set());
   const [viewFighterId, setViewFighterId]   = useState<string | null>(null);
 
-  const { data: favourites = [], isLoading } = useQuery<FavRow[]>({
-    queryKey: ["favourites"],
+  const { data: hasIsSaved, isLoading: schemaLoading } = useFavouritesSchema();
+
+  const { data: favourites = [], isLoading: favouritesLoading } = useQuery<FavRow[]>({
+    queryKey: ["favourites", hasIsSaved],
+    enabled: hasIsSaved !== undefined,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("matchmaker_favourites")
         .select(`
           id, fighter_id, note, notify, notified_at, created_at, tags,
@@ -96,13 +150,15 @@ export function FavouritesPage() {
             fighter_sports (sport, pro_w, pro_l, pro_d, level, is_active)
           ),
           matchmaker_favourite_notes (id, body, created_at)
-        `)
-        .eq("is_saved", true)
-        .order("created_at", { ascending: false });
+        `);
+      if (hasIsSaved) q = q.eq("is_saved", true);
+      const { data, error } = await q.order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as FavRow[];
     },
   });
+
+  const isLoading = schemaLoading || favouritesLoading;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["favourites"] });
 
@@ -208,25 +264,11 @@ export function FavouritesPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <FavouritesLoading />;
   }
 
   if (favourites.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-4 px-6">
-        <Heart className="h-10 w-10 text-muted-foreground/30" />
-        <div className="text-center">
-          <p className="font-semibold text-foreground">No favourites yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Click the heart on a fighter in search to add them to your favourites.
-          </p>
-        </div>
-      </div>
-    );
+    return <FavouritesEmpty />;
   }
 
   return (

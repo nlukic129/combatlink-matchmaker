@@ -9,6 +9,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { cn, formatCurrency } from "@/lib/utils";
 import { saveFavourite, removeSavedFavourite, setNotifyWatch } from "@/lib/favourite-mutations";
+import { isSavedFavourite } from "@/lib/favourites-schema";
+import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
 import type { Fighter } from "@/types/database";
 import { VideosTab } from "@/components/fighter-drawer/videos-tab";
 
@@ -170,17 +172,24 @@ export function FighterDrawerContent({ fighter, activeSport }: Props) {
     },
   });
 
+  const { data: hasIsSaved } = useFavouritesSchema();
+
   const { data: favourite } = useQuery({
-    queryKey: ["favourite-detail", fighter.id],
-    enabled: !!matchmaker,
+    queryKey: ["favourite-detail", fighter.id, hasIsSaved],
+    enabled: !!matchmaker && hasIsSaved !== undefined,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("matchmaker_favourites").select("id, note, notify, is_saved").eq("fighter_id", fighter.id).maybeSingle();
+      const select = hasIsSaved ? "id, note, notify, is_saved" : "id, note, notify";
+      const { data, error } = await supabase
+        .from("matchmaker_favourites")
+        .select(select)
+        .eq("fighter_id", fighter.id)
+        .maybeSingle();
+      if (error) throw error;
       return data;
     },
   });
 
-  const isFavourite = favourite?.is_saved === true;
+  const isFavourite = isSavedFavourite(favourite, hasIsSaved ?? false);
   const isNotify = favourite?.notify === true;
 
   const toggleFavourite = useMutation({

@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { FighterDrawer } from "@/components/fighter-drawer/fighter-drawer";
 import { SaveTagPopup, tagPopupPositionForAnchor } from "@/components/favourites/save-tag-popup";
 import { saveFavourite, removeSavedFavourite } from "@/lib/favourite-mutations";
+import { isSavedFavourite } from "@/lib/favourites-schema";
+import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
 import type { Fighter } from "@/types/database";
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
@@ -586,14 +588,20 @@ function FighterPanel({
   const wasAddingRef = useRef(false);
   const [tagPopup, setTagPopup] = useState<{ top: number; right: number } | null>(null);
 
+  const { data: hasIsSaved } = useFavouritesSchema();
+
   const { data: isFavourite } = useQuery({
-    queryKey: ["favourite", fighterId],
-    enabled: !!fighterId,
+    queryKey: ["favourite", fighterId, hasIsSaved],
+    enabled: !!fighterId && hasIsSaved !== undefined,
     queryFn: async () => {
-      const { data: row } = await supabase
-        .from("matchmaker_favourites").select("id, is_saved")
-        .eq("fighter_id", fighterId!).maybeSingle();
-      return row?.is_saved === true;
+      const select = hasIsSaved ? "id, is_saved" : "id";
+      const { data: row, error } = await supabase
+        .from("matchmaker_favourites")
+        .select(select)
+        .eq("fighter_id", fighterId!)
+        .maybeSingle();
+      if (error) throw error;
+      return isSavedFavourite(row, hasIsSaved ?? false);
     },
   });
 
