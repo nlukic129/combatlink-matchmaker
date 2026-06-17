@@ -147,6 +147,7 @@ export type Database = {
           id: number;
           user_id: string;
           fighter_sport_id: number;
+          name: string | null;
           opponent_name: string | null;
           result: string | null;
           method: string | null;
@@ -155,6 +156,12 @@ export type Database = {
           event_date: string | null;
           organization: string | null;
           weight_class: string | null;
+          sport: string | null;
+          level: string | null;
+          title_bout: string | null;
+          title_status: string | null;
+          bonuses: string[] | null;
+          link: string | null;
         };
         Insert: Record<string, never>;
         Update: Record<string, never>;

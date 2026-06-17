@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowLeft, ArrowLeftRight, Heart, Instagram, Search, Shield,
-  Swords, UserPlus, X, Zap,
+  ArrowLeft, ArrowLeftRight, Calendar, Clock, Globe, Heart, Instagram,
+  Lock, MapPin, Search, Shield, Swords, UserPlus, X, Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { coercedStringArray } from "@/lib/search-params";
@@ -63,6 +63,98 @@ function methodLabel(m: string | null): string | null {
   return METHOD_LABEL[m] ?? m;
 }
 
+function opponentDisplayName(fight: AnyRow): string {
+  const name = fight.name ?? fight.opponent_name;
+  if (typeof name === "string" && name.trim()) return name.trim();
+  return "Opponent not listed";
+}
+
+function formatFightDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m) return iso;
+  const dt = d ? new Date(y, m - 1, d) : new Date(y, m - 1, 1);
+  return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+type FightOutcome = "W" | "L" | "D" | "NC";
+
+function fightOutcomeMeta(result: string | null | undefined): {
+  label: string;
+  tone: "win" | "loss" | "draw" | "nc";
+} {
+  const o = parseFightOutcome(result ?? "");
+  if (o === "W") return { label: "W", tone: "win" };
+  if (o === "L") return { label: "L", tone: "loss" };
+  if (o === "D") return { label: "D", tone: "draw" };
+  return { label: "–", tone: "nc" };
+}
+
+function historyInsight(
+  leftName: string,
+  rightName: string,
+  left: FighterData,
+  right: FighterData,
+): string {
+  const lf = left.form;
+  const rf = right.form;
+  if (lf.streak >= 2 && rf.streak >= 2 && lf.type === rf.type) {
+    if (lf.type === "W") {
+      return `Both on win streaks — ${leftName} ${lf.streak}W, ${rightName} ${rf.streak}W.`;
+    }
+    if (lf.type === "L") {
+      return "Both fighters on losing runs — form risk on both sides.";
+    }
+  }
+  if (lf.streak >= 2 && lf.type === "W") {
+    return `${leftName} enters on a ${lf.streak}-fight win streak.`;
+  }
+  if (rf.streak >= 2 && rf.type === "W") {
+    return `${rightName} enters on a ${rf.streak}-fight win streak.`;
+  }
+  if (lf.streak >= 2 && lf.type === "L") {
+    return `${leftName} has dropped ${lf.streak} straight — momentum question.`;
+  }
+  if (rf.streak >= 2 && rf.type === "L") {
+    return `${rightName} has dropped ${rf.streak} straight — momentum question.`;
+  }
+  return "Last five recorded bouts — scan recent form before making the call.";
+}
+
+function stanceLabel(stance: string | null | undefined): string {
+  if (!stance?.trim()) return "—";
+  return stance.trim().replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function physicalInsight(
+  leftName: string,
+  rightName: string,
+  lf: Fighter,
+  rf: Fighter,
+): string {
+  const heightAdv = calcAdv(lf.height_cm, rf.height_cm, "higher");
+  const reachAdv = calcAdv(lf.reach_cm, rf.reach_cm, "higher");
+  const heightDelta = lf.height_cm != null && rf.height_cm != null
+    ? Math.abs(lf.height_cm - rf.height_cm) : null;
+  const reachDelta = lf.reach_cm != null && rf.reach_cm != null
+    ? Math.abs(lf.reach_cm - rf.reach_cm) : null;
+
+  if (reachAdv !== "none" && reachDelta != null && reachDelta >= 5) {
+    const leader = reachAdv === "left" ? leftName : rightName;
+    return `${leader} brings a +${reachDelta} cm reach edge — range matters in this matchup.`;
+  }
+  if (heightAdv !== "none" && heightDelta != null && heightDelta >= 3) {
+    const leader = heightAdv === "left" ? leftName : rightName;
+    return `${leader} is +${heightDelta} cm taller — frame advantage at the centre.`;
+  }
+  if (lf.stance && rf.stance && lf.stance.toLowerCase() !== rf.stance.toLowerCase()) {
+    return `Opposite stances — ${stanceLabel(lf.stance)} vs ${stanceLabel(rf.stance)}.`;
+  }
+  if (heightAdv === "equal" && reachAdv === "equal") {
+    return "Near-identical size and range — neither fighter owns the physical edge.";
+  }
+  return "Size, reach, and stance shape how this fight plays out in the pocket.";
+}
+
 type FinishBucket = "ko" | "sub" | "dec" | "dq" | "other";
 type FinishBreakdown = Record<FinishBucket, number>;
 
@@ -72,7 +164,21 @@ const FINISH_COLORS: Record<FinishBucket, string> = {
 const FINISH_LABELS: Record<FinishBucket, string> = {
   ko: "KO / TKO", sub: "Submission", dec: "Decision", dq: "DQ", other: "Other",
 };
+const FINISH_ABBR: Record<FinishBucket, string> = {
+  ko: "KO/TKO", sub: "SUB", dec: "DEC", dq: "DQ", other: "OTH",
+};
+const FINISH_TOOLTIPS: Record<FinishBucket, string> = {
+  ko: "Knockout / Technical Knockout — stoppage from strikes, doctor, corner, or injury",
+  sub: "Submission — tap out, choke, joint lock, or technical submission",
+  dec: "Decision — unanimous (UD), split (SD), or majority (MD) scorecards",
+  dq: "Disqualification (DQ) — foul or rule violation",
+  other: "Other — no contest, overturned result, or uncategorized method",
+};
 const FINISH_ORDER: FinishBucket[] = ["ko", "sub", "dec", "dq", "other"];
+
+function breakdownTotal(b: FinishBreakdown): number {
+  return FINISH_ORDER.reduce((sum, k) => sum + b[k], 0);
+}
 
 function parseFightOutcome(result: AnyRow): "W" | "L" | "D" | "NC" {
   if (!result) return "NC";
@@ -140,6 +246,85 @@ function calcAdv(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = any;
 
+type IgSnapshot = { followerCount: number; recordedAt: string };
+
+type IgGrowthStats = {
+  latest: number;
+  delta: number;
+  deltaPct: string;
+  deltaPctNum: number;
+  days: number;
+  snapshotCount: number;
+  coords: { x: number; y: number; count: number; label: string }[];
+  line: string;
+  area: string;
+  width: number;
+  height: number;
+};
+
+function latestFollowerCount(snapshots: IgSnapshot[]): number | null {
+  if (snapshots.length === 0) return null;
+  return snapshots[snapshots.length - 1].followerCount;
+}
+
+function computeIgGrowth(snapshots: IgSnapshot[]): IgGrowthStats | null {
+  if (snapshots.length < 2) return null;
+  const sorted = [...snapshots].sort(
+    (a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime(),
+  );
+  const min = Math.min(...sorted.map((s) => s.followerCount));
+  const max = Math.max(...sorted.map((s) => s.followerCount));
+  const span = Math.max(max - min, Math.max(max * 0.01, 1));
+  const mid = (max + min) / 2;
+  const vMin = mid - span / 2;
+  const vMax = mid + span / 2;
+  const range = vMax - vMin;
+  const width = 320;
+  const height = 72;
+  const pad = 6;
+  const coords = sorted.map((s, i) => ({
+    x: pad + (i / (sorted.length - 1)) * (width - pad * 2),
+    y: height - pad - ((s.followerCount - vMin) / range) * (height - pad * 2),
+    count: s.followerCount,
+    label: new Date(s.recordedAt).toLocaleDateString("en-GB", { month: "short", day: "numeric" }),
+  }));
+  let line = `M${coords[0].x},${coords[0].y}`;
+  for (let i = 1; i < coords.length; i++) {
+    const prev = coords[i - 1];
+    const curr = coords[i];
+    const cpx = (prev.x + curr.x) / 2;
+    line += ` C${cpx},${prev.y} ${cpx},${curr.y} ${curr.x},${curr.y}`;
+  }
+  const area = `${line} L${coords[coords.length - 1].x},${height} L${coords[0].x},${height} Z`;
+  const first = sorted[0].followerCount;
+  const last = sorted[sorted.length - 1].followerCount;
+  const delta = last - first;
+  const pct = first > 0 ? (delta / first) * 100 : 0;
+  const deltaPct = Math.abs(pct) < 1
+    ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
+    : `${pct >= 0 ? "+" : ""}${Math.round(pct)}%`;
+  const days = Math.max(
+    1,
+    Math.round(
+      (new Date(sorted[sorted.length - 1].recordedAt).getTime()
+        - new Date(sorted[0].recordedAt).getTime()) / 86_400_000,
+    ),
+  );
+  return {
+    latest: last,
+    delta,
+    deltaPct,
+    deltaPctNum: pct,
+    days,
+    snapshotCount: sorted.length,
+    coords,
+    line,
+    area,
+    width,
+    height,
+  };
+}
+
 function useFighterData(fighterId: string | null, sport: string | undefined) {
   const fighter = useQuery<Fighter | null>({
     queryKey: ["fighter-detail", fighterId],
@@ -179,17 +364,23 @@ function useFighterData(fighterId: string | null, sport: string | undefined) {
     },
   });
 
-  const follower = useQuery<number | null>({
-    queryKey: ["fighter-social", fighterId],
+  const socialSnapshots = useQuery<IgSnapshot[]>({
+    queryKey: ["fighter-social-snapshots", fighterId],
     enabled: !!fighterId,
     queryFn: async () => {
       const { data } = await supabase
-        .from("fighter_social_snapshots").select("follower_count")
+        .from("fighter_social_snapshots")
+        .select("follower_count, recorded_at")
         .eq("fighter_id", fighterId!)
-        .order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-      return data?.follower_count ?? null;
+        .order("recorded_at", { ascending: true });
+      return (data ?? []).map((row) => ({
+        followerCount: row.follower_count,
+        recordedAt: row.recorded_at,
+      }));
     },
   });
+
+  const followerSnapshots = socialSnapshots.data ?? [];
 
   const activeSport = sports.data?.find((s: AnyRow) => s.sport === sport) ?? sports.data?.[0] ?? null;
   const allFights = fights.data ?? [];
@@ -205,23 +396,22 @@ function useFighterData(fighterId: string | null, sport: string | undefined) {
     winBreakdown,
     lossBreakdown: buildBreakdown(allFights, "L"),
     careerHighlights: buildCareerHighlights(allFights),
-    followerCount: follower.data ?? null,
+    followerSnapshots,
+    followerCount: latestFollowerCount(followerSnapshots),
     form: recentForm(lastFights),
-    isLoading: fighter.isLoading || sports.isLoading || fights.isLoading,
+    isLoading: fighter.isLoading || sports.isLoading || fights.isLoading || socialSnapshots.isLoading,
   };
 }
 
 type FighterData = ReturnType<typeof useFighterData>;
 
-type SectionId = "physical" | "record" | "booking" | "visibility" | "career" | "breakdown" | "history";
+type SectionId = "record" | "physical" | "booking" | "visibility" | "history";
 const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "physical", label: "Physical" },
   { id: "record", label: "Record" },
   { id: "booking", label: "Booking" },
-  { id: "visibility", label: "Visibility" },
-  { id: "career", label: "Career" },
-  { id: "breakdown", label: "Finish Methods" },
   { id: "history", label: "Recent Fights" },
+  { id: "physical", label: "Physical" },
+  { id: "visibility", label: "Visibility" },
 ];
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -230,7 +420,7 @@ function ComparePage() {
   const { fighters: rawIds, sport, gender } = Route.useSearch();
   const navigate = useNavigate({ from: "/compare" });
   const [drawerFighterId, setDrawerFighterId] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<SectionId>("physical");
+  const [activeSection, setActiveSection] = useState<SectionId>("record");
 
   const leftId = rawIds[0] ?? null;
   const rightId = rawIds[1] ?? null;
@@ -716,6 +906,116 @@ function availShort(status: string): string {
   return AVAIL_SHORT[status] ?? status;
 }
 
+const AVAIL_RANK: Record<string, number> = {
+  available: 3,
+  in_camp: 2,
+  unavailable: 1,
+};
+
+function formatAvailableFrom(fighter: Fighter): string {
+  if (fighter.available_from) {
+    return new Date(fighter.available_from).toLocaleDateString("en-GB", {
+      day: "numeric", month: "short", year: "numeric",
+    });
+  }
+  if (fighter.availability_status === "available") return "Now";
+  return "—";
+}
+
+function prepLabel(weeks: number | null | undefined): string {
+  if (weeks == null) return "—";
+  if (weeks === 0) return "Always ready";
+  return `${weeks} week${weeks === 1 ? "" : "s"}`;
+}
+
+function promoLabel(status: string | null | undefined): string {
+  if (status === "exclusive") return "Exclusive";
+  if (status === "free_agent") return "Free agent";
+  return status ?? "—";
+}
+
+function locationLabel(fighter: Fighter): string {
+  return [fighter.current_city, fighter.current_city_country].filter(Boolean).join(", ") || "—";
+}
+
+function instagramHandle(handle: string | null | undefined): string | null {
+  if (!handle?.trim()) return null;
+  return handle.trim().replace(/^@/, "");
+}
+
+function visibilityInsight(
+  leftName: string,
+  rightName: string,
+  left: FighterData,
+  right: FighterData,
+): string {
+  const lIg = instagramHandle(left.fighter?.instagram);
+  const rIg = instagramHandle(right.fighter?.instagram);
+  const lF = left.followerCount;
+  const rF = right.followerCount;
+  const lGrowth = computeIgGrowth(left.followerSnapshots);
+  const rGrowth = computeIgGrowth(right.followerSnapshots);
+
+  if (!lIg && !rIg && lF == null && rF == null) {
+    return "No social footprint on file — limited promotable reach for both fighters.";
+  }
+
+  if (lGrowth && rGrowth && Math.abs(lGrowth.deltaPctNum - rGrowth.deltaPctNum) >= 8) {
+    const leader = lGrowth.deltaPctNum > rGrowth.deltaPctNum ? leftName : rightName;
+    return `${leader} is growing faster on Instagram across the tracked snapshot window.`;
+  }
+
+  if (lGrowth && lGrowth.delta > 0 && !rGrowth) {
+    return `${leftName} gained ${lGrowth.delta.toLocaleString()} followers over ${lGrowth.days} tracked days.`;
+  }
+  if (rGrowth && rGrowth.delta > 0 && !lGrowth) {
+    return `${rightName} gained ${rGrowth.delta.toLocaleString()} followers over ${rGrowth.days} tracked days.`;
+  }
+
+  const fAdv = calcAdv(lF, rF, "higher");
+  if (fAdv !== "none" && fAdv !== "equal" && lF != null && rF != null) {
+    const leader = fAdv === "left" ? leftName : rightName;
+    const hi = Math.max(lF, rF);
+    const lo = Math.min(lF, rF);
+    if (hi - lo >= 5000 || (lo > 0 && hi / lo >= 1.5)) {
+      return `${leader} brings a stronger Instagram audience — useful for card marketing and buzz.`;
+    }
+  }
+
+  if (lGrowth || rGrowth) {
+    return "Follower snapshots on file — compare current reach and growth trend side by side.";
+  }
+
+  if (lIg && rIg) {
+    return "Both fighters have Instagram presence — compare reach before shaping the narrative.";
+  }
+
+  if (lIg || rIg) {
+    const who = lIg ? leftName : rightName;
+    return `Only ${who} has Instagram listed — asymmetry in promotable reach.`;
+  }
+
+  return "Social reach shapes how much attention this matchup can pull pre-fight.";
+}
+
+function bookingReadiness(left: Fighter, right: Fighter): {
+  tone: "good" | "warn" | "neutral";
+  message: string;
+} {
+  const la = left.availability_status ?? "unavailable";
+  const ra = right.availability_status ?? "unavailable";
+  if (la === "available" && ra === "available") {
+    return { tone: "good", message: "Both fighters are available — strong window to open booking talks." };
+  }
+  if (la === "unavailable" && ra === "unavailable") {
+    return { tone: "warn", message: "Both fighters are unavailable — confirm status before pitching this matchup." };
+  }
+  if (la === "in_camp" || ra === "in_camp") {
+    return { tone: "neutral", message: "At least one fighter is in camp — align timelines before committing." };
+  }
+  return { tone: "warn", message: "Mixed availability — verify dates and camp schedules early." };
+}
+
 function purseHeadline(adv: AdvDir, leftName: string, rightName: string): string {
   if (adv === "equal") return "Same purse";
   if (adv === "none") return "—";
@@ -865,8 +1165,6 @@ function MatchInsights({ left, right }: { left: FighterData; right: FighterData 
 
 function sectionTitle(id: SectionId, sport: string | undefined): string {
   if (id === "record") return `Record${sport ? ` · ${sportLabel(sport)}` : ""}`;
-  if (id === "career") return "Career Highlights";
-  if (id === "breakdown") return "Finish Methods";
   if (id === "history") return "Recent Fights";
   return SECTIONS.find((s) => s.id === id)?.label ?? id;
 }
@@ -885,8 +1183,6 @@ function ComparisonSections({
       {activeSection === "record" && <RecordSection left={left} right={right} sport={sport} />}
       {activeSection === "booking" && <BookingSection left={left} right={right} />}
       {activeSection === "visibility" && <VisibilitySection left={left} right={right} />}
-      {activeSection === "career" && <CareerSection left={left} right={right} />}
-      {activeSection === "breakdown" && <BreakdownSection left={left} right={right} />}
       {activeSection === "history" && <HistorySection left={left} right={right} />}
     </CmpSection>
   );
@@ -938,92 +1234,432 @@ function CompareRow({
   );
 }
 
-function PhysicalBar({
-  value, max, adv, side,
-}: {
-  value: number;
-  max: number;
-  adv: boolean;
-  side: "left" | "right";
-}) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  return (
-    <div className={cn("cmp-phys-bar-wrap", side === "left" ? "cmp-phys-bar-wrap--left" : "cmp-phys-bar-wrap--right")}>
-      <span className={cn("cmp-phys-val", adv && "text-emerald-400")}>{value} cm</span>
-      <div className="cmp-phys-bar">
-        <div
-          className={cn("cmp-phys-bar-fill", adv && "cmp-phys-bar-fill--adv")}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
 function PhysicalSection({ left, right }: { left: FighterData; right: FighterData }) {
   const lf = left.fighter!;
   const rf = right.fighter!;
-  const maxHeight = Math.max(lf.height_cm ?? 0, rf.height_cm ?? 0, 1);
-  const maxReach = Math.max(lf.reach_cm ?? 0, rf.reach_cm ?? 0, 1);
-  const heightAdv = calcAdv(lf.height_cm, rf.height_cm, "higher");
-  const reachAdv = calcAdv(lf.reach_cm, rf.reach_cm, "higher");
+  const insight = physicalInsight(lf.first_name, rf.first_name, lf, rf);
+  const lAge = calcAge(lf.dob);
+  const rAge = calcAge(rf.dob);
+  const lApe = lf.height_cm != null && lf.reach_cm != null ? lf.reach_cm - lf.height_cm : null;
+  const rApe = rf.height_cm != null && rf.reach_cm != null ? rf.reach_cm - rf.height_cm : null;
+  const hasProfile = lf.stance || rf.stance || lf.weight_kg != null || rf.weight_kg != null;
 
   return (
-    <div className="cmp-compare-card">
-      <CompareRow
-        label="Age"
-        left={calcAge(lf.dob) != null ? `${calcAge(lf.dob)} yrs` : "—"}
-        right={calcAge(rf.dob) != null ? `${calcAge(rf.dob)} yrs` : "—"}
-      />
-      <CompareRow
-        label="Height"
-        left={lf.height_cm ? <PhysicalBar value={lf.height_cm} max={maxHeight} adv={heightAdv === "left"} side="left" /> : "—"}
-        right={rf.height_cm ? <PhysicalBar value={rf.height_cm} max={maxHeight} adv={heightAdv === "right"} side="right" /> : "—"}
-        adv={heightAdv}
-      />
-      <CompareRow
-        label="Reach"
-        left={lf.reach_cm ? <PhysicalBar value={lf.reach_cm} max={maxReach} adv={reachAdv === "left"} side="left" /> : "—"}
-        right={rf.reach_cm ? <PhysicalBar value={rf.reach_cm} max={maxReach} adv={reachAdv === "right"} side="right" /> : "—"}
-        adv={reachAdv}
-      />
-      <CompareRow label="Stance" left={lf.stance ?? "—"} right={rf.stance ?? "—"} />
+    <div className="cmp-physical-dossier">
+      <div className="cmp-physical-insight">
+        <span className="cmp-physical-insight-dot" aria-hidden />
+        <p className="cmp-physical-insight-text">{insight}</p>
+      </div>
+
+      <div className="cmp-physical-duel">
+        <div className="cmp-physical-duel-axis-line" aria-hidden />
+
+        <div className="cmp-physical-duel-hero">
+          <PhysicalHeroCard
+            name={lf.first_name}
+            age={lAge}
+            height={lf.height_cm}
+            reach={lf.reach_cm}
+            ape={lApe}
+            side="left"
+          />
+          <div className="cmp-physical-duel-axis">
+            <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+          </div>
+          <PhysicalHeroCard
+            name={rf.first_name}
+            age={rAge}
+            height={rf.height_cm}
+            reach={rf.reach_cm}
+            ape={rApe}
+            side="right"
+          />
+        </div>
+
+        <div className="cmp-physical-metrics">
+          <div className="cmp-physical-metrics-head">
+            <h3 className="cmp-physical-metrics-title">Size & range</h3>
+            <p className="cmp-physical-metrics-sub">Head-to-head measurements</p>
+          </div>
+          <PhysicalMetricRow
+            label="Height"
+            unit="cm"
+            leftVal={lf.height_cm}
+            rightVal={rf.height_cm}
+          />
+          <PhysicalMetricRow
+            label="Reach"
+            unit="cm"
+            leftVal={lf.reach_cm}
+            rightVal={rf.reach_cm}
+          />
+          {(lApe != null || rApe != null) && (
+            <PhysicalMetricRow
+              label="APE"
+              unit="cm"
+              leftVal={lApe}
+              rightVal={rApe}
+              hint="Reach minus height"
+              showBars={false}
+            />
+          )}
+          {hasProfile && (
+            <>
+              <div className="cmp-physical-metrics-split" aria-hidden />
+              <PhysicalProfileRow
+                label="Stance"
+                left={stanceLabel(lf.stance)}
+                right={stanceLabel(rf.stance)}
+                clash={!!lf.stance && !!rf.stance && lf.stance.toLowerCase() !== rf.stance.toLowerCase()}
+              />
+              {(lf.weight_kg != null || rf.weight_kg != null) && (
+                <PhysicalProfileRow
+                  label="Walk-around"
+                  left={lf.weight_kg != null ? `${lf.weight_kg} kg` : "—"}
+                  right={rf.weight_kg != null ? `${rf.weight_kg} kg` : "—"}
+                  adv={calcAdv(lf.weight_kg, rf.weight_kg, "higher")}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
 
-function WinMethodsBar({ ko, sub, dec, other, total }: {
-  ko: number; sub: number; dec: number; other: number; total: number;
+function PhysicalHeroCard({
+  name, age, height, reach, ape, side,
+}: {
+  name: string;
+  age: number | null;
+  height: number | null;
+  reach: number | null;
+  ape: number | null;
+  side: "left" | "right";
 }) {
-  if (total === 0) return <span className="text-sm text-muted-foreground">—</span>;
-  const segments = [
-    { value: ko, label: "KO", color: "#f87171" },
-    { value: sub, label: "Sub", color: "#fb923c" },
-    { value: dec, label: "Dec", color: "rgba(255,255,255,0.38)" },
-    { value: other, label: "Other", color: "rgba(255,255,255,0.14)" },
-  ].filter((s) => s.value > 0);
+  return (
+    <div className={cn(
+      "cmp-physical-hero-card",
+      side === "left" ? "cmp-physical-hero-card--left" : "cmp-physical-hero-card--right",
+    )}>
+      <span className="cmp-physical-hero-name">{name}</span>
+      <div className="cmp-physical-hero-body">
+        <div className="cmp-physical-hero-stat">
+          <span className="cmp-physical-hero-stat-lbl">Age</span>
+          <span className="cmp-physical-hero-stat-val">{age != null ? `${age} yrs` : "—"}</span>
+        </div>
+        <div className="cmp-physical-hero-stat">
+          <span className="cmp-physical-hero-stat-lbl">Height</span>
+          <span className="cmp-physical-hero-stat-val">{height != null ? `${height} cm` : "—"}</span>
+        </div>
+        <div className="cmp-physical-hero-stat">
+          <span className="cmp-physical-hero-stat-lbl">Reach</span>
+          <span className="cmp-physical-hero-stat-val">{reach != null ? `${reach} cm` : "—"}</span>
+        </div>
+        {ape != null && (
+          <span className="cmp-physical-hero-ape">
+            {ape >= 0 ? `+${ape}` : ape} cm APE
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PhysicalMetricRow({
+  label, unit, leftVal, rightVal, hint, showBars = true,
+}: {
+  label: string;
+  unit: string;
+  leftVal: number | null;
+  rightVal: number | null;
+  hint?: string;
+  showBars?: boolean;
+}) {
+  const adv = calcAdv(leftVal, rightVal, "higher");
+  const max = Math.max(leftVal ?? 0, rightVal ?? 0, 1);
+  const lPct = leftVal != null && leftVal > 0 ? Math.round((leftVal / max) * 100) : 0;
+  const rPct = rightVal != null && rightVal > 0 ? Math.round((rightVal / max) * 100) : 0;
+  const maxPct = Math.max(lPct, rPct, 1);
+
+  function formatVal(v: number | null): string {
+    if (v == null) return "—";
+    if (label === "APE" && v > 0) return `+${v} ${unit}`;
+    return `${v} ${unit}`;
+  }
+
+  const tag = (
+    <div className="cmp-physical-metric-tag-inner">
+      <span>{label}</span>
+      {hint && <span className="cmp-physical-metric-hint">{hint}</span>}
+    </div>
+  );
 
   return (
-    <div>
-      <div className="cmp-methods-bar">
-        {segments.map((s, i) => (
-          <div key={i} style={{ width: `${(s.value / total) * 100}%`, background: s.color }}
-            title={`${s.label}: ${s.value}`} />
-        ))}
+    <div className="cmp-physical-metric-row">
+      <div className="cmp-physical-metric-tag cmp-physical-metric-tag--left">{tag}</div>
+      <div className={cn("cmp-physical-metric-side cmp-physical-metric-side--left", adv === "left" && "cmp-physical-metric-side--adv")}>
+        <span className="cmp-physical-metric-val">{formatVal(leftVal)}</span>
+        {showBars && leftVal != null && leftVal > 0 && (
+          <div className="cmp-physical-metric-bar">
+            <div
+              className="cmp-physical-metric-bar-fill cmp-physical-metric-bar-fill--left"
+              style={{ width: `${(lPct / maxPct) * 100}%` }}
+            />
+          </div>
+        )}
       </div>
-      <div className="cmp-methods-legend">
-        {segments.map((s, i) => (
-          <span key={i} className="cmp-methods-legend-item">
-            <span className="cmp-methods-dot" style={{ background: s.color }} />
-            {s.label} {Math.round((s.value / total) * 100)}%
+      <div className="cmp-physical-metric-axis" aria-hidden />
+      <div className={cn("cmp-physical-metric-side cmp-physical-metric-side--right", adv === "right" && "cmp-physical-metric-side--adv")}>
+        {showBars && rightVal != null && rightVal > 0 && (
+          <div className="cmp-physical-metric-bar">
+            <div
+              className="cmp-physical-metric-bar-fill cmp-physical-metric-bar-fill--right"
+              style={{ width: `${(rPct / maxPct) * 100}%` }}
+            />
+          </div>
+        )}
+        <span className="cmp-physical-metric-val">{formatVal(rightVal)}</span>
+      </div>
+      <div className="cmp-physical-metric-tag cmp-physical-metric-tag--right">{tag}</div>
+    </div>
+  );
+}
+
+function PhysicalProfileRow({
+  label, left, right, adv = "none", clash = false,
+}: {
+  label: string;
+  left: string;
+  right: string;
+  adv?: AdvDir;
+  clash?: boolean;
+}) {
+  return (
+    <div className={cn("cmp-physical-profile-row", clash && "cmp-physical-profile-row--clash")}>
+      <span className="cmp-physical-profile-tag cmp-physical-profile-tag--left">{label}</span>
+      <span className={cn(
+        "cmp-physical-profile-side cmp-physical-profile-side--left",
+        adv === "left" && "cmp-physical-profile-side--adv",
+      )}>
+        {left}
+      </span>
+      <div className="cmp-physical-metric-axis" aria-hidden />
+      <span className={cn(
+        "cmp-physical-profile-side cmp-physical-profile-side--right",
+        adv === "right" && "cmp-physical-profile-side--adv",
+      )}>
+        {right}
+      </span>
+      <span className="cmp-physical-profile-tag cmp-physical-profile-tag--right">{label}</span>
+    </div>
+  );
+}
+
+function RecordHeroCard({
+  name, sportLevel, w, l, d, rate, form, side,
+}: {
+  name: string;
+  sportLevel: string | null;
+  w: number;
+  l: number;
+  d: number;
+  rate: number | null;
+  form: { streak: number; type: "W" | "L" | "D" | null };
+  side: "left" | "right";
+}) {
+  return (
+    <div className={cn("cmp-record-hero-card", side === "left" ? "cmp-record-hero-card--left" : "cmp-record-hero-card--right")}>
+      <div className="cmp-record-hero-top">
+        <p className="cmp-record-hero-name">{name}</p>
+        {sportLevel && <span className="cmp-record-hero-level">{sportLevel}</span>}
+      </div>
+      <RecordBlock w={w} l={l} d={d} />
+      <div className="cmp-record-hero-meta">
+        {rate != null ? (
+          <span className="cmp-record-hero-rate">{rate}%<span className="cmp-record-hero-rate-lbl"> win rate</span></span>
+        ) : (
+          <span className="cmp-record-hero-rate cmp-record-hero-rate--empty">—</span>
+        )}
+        {form.streak >= 2 && form.type && (
+          <span className={cn(
+            "cmp-record-form",
+            form.type === "W" ? "cmp-record-form--hot" : form.type === "L" ? "cmp-record-form--cold" : "",
+          )}>
+            {form.streak}{form.type} streak
           </span>
-        ))}
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TitleFightDuel({
+  leftName, rightName, left, right,
+}: {
+  leftName: string;
+  rightName: string;
+  left: { titleFights: number; titlesWon: number };
+  right: { titleFights: number; titlesWon: number };
+}) {
+  const lLost = left.titleFights - left.titlesWon;
+  const rLost = right.titleFights - right.titlesWon;
+  const lRate = left.titleFights > 0 ? Math.round((left.titlesWon / left.titleFights) * 100) : null;
+  const rRate = right.titleFights > 0 ? Math.round((right.titlesWon / right.titleFights) * 100) : null;
+  const adv = calcAdv(lRate, rRate, "higher");
+
+  return (
+    <div className="cmp-title-duel">
+      <div className="cmp-title-duel-head">
+        <span className="cmp-title-duel-eyebrow">Championship pedigree</span>
+        <span className="cmp-title-duel-hint">Title bouts on record</span>
+      </div>
+      <div className="cmp-title-duel-grid">
+        <div className={cn("cmp-title-duel-side", adv === "left" && "cmp-title-duel-side--adv")}>
+          <span className="cmp-title-duel-fighter">{leftName}</span>
+          <div className="cmp-title-duel-body">
+            {left.titleFights > 0 ? (
+              <>
+                <div className="cmp-title-duel-score">
+                  <span className="cmp-title-duel-won">{left.titlesWon}</span>
+                  <span className="cmp-title-duel-sep">–</span>
+                  <span className="cmp-title-duel-lost">{lLost}</span>
+                </div>
+                <span className="cmp-title-duel-caption">{left.titleFights} title fight{left.titleFights === 1 ? "" : "s"} · {lRate}% won</span>
+                <div className="cmp-title-duel-bar">
+                  <div className="cmp-title-duel-bar-win" style={{ width: `${lRate ?? 0}%` }} />
+                </div>
+              </>
+            ) : (
+              <span className="cmp-title-duel-empty">No title fights logged</span>
+            )}
+          </div>
+        </div>
+
+        <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+
+        <div className={cn("cmp-title-duel-side cmp-title-duel-side--right", adv === "right" && "cmp-title-duel-side--adv")}>
+          <span className="cmp-title-duel-fighter">{rightName}</span>
+          <div className="cmp-title-duel-body">
+            {right.titleFights > 0 ? (
+              <>
+                <div className="cmp-title-duel-score">
+                  <span className="cmp-title-duel-won">{right.titlesWon}</span>
+                  <span className="cmp-title-duel-sep">–</span>
+                  <span className="cmp-title-duel-lost">{rLost}</span>
+                </div>
+                <span className="cmp-title-duel-caption">{right.titleFights} title fight{right.titleFights === 1 ? "" : "s"} · {rRate}% won</span>
+                <div className="cmp-title-duel-bar">
+                  <div className="cmp-title-duel-bar-win" style={{ width: `${rRate ?? 0}%` }} />
+                </div>
+              </>
+            ) : (
+              <span className="cmp-title-duel-empty">No title fights logged</span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MethodDuelPanel({
+  mode, leftName, rightName, left, right,
+}: {
+  mode: "win" | "loss";
+  leftName: string;
+  rightName: string;
+  left: FinishBreakdown;
+  right: FinishBreakdown;
+}) {
+  const leftTotal = breakdownTotal(left);
+  const rightTotal = breakdownTotal(right);
+  if (leftTotal === 0 && rightTotal === 0) return null;
+
+  const modeLabel = mode === "win" ? "Win methods" : "Loss methods";
+  const modeHint = mode === "win"
+    ? "How each fighter closes out victories"
+    : "How each fighter has been beaten";
+
+  return (
+    <div className="cmp-method-duel">
+      <div className="cmp-method-duel-head">
+        <div>
+          <h3 className="cmp-method-duel-title">{modeLabel}</h3>
+          <p className="cmp-method-duel-sub">{modeHint}</p>
+        </div>
+        <div className="cmp-method-duel-names">
+          <span>{leftName}</span>
+          <span className="cmp-method-duel-names-sep">vs</span>
+          <span>{rightName}</span>
+        </div>
+      </div>
+
+      <div className="cmp-method-duel-rows">
+        {FINISH_ORDER.map((key) => {
+          const lCount = left[key];
+          const rCount = right[key];
+          const lPct = leftTotal > 0 ? Math.round((lCount / leftTotal) * 100) : 0;
+          const rPct = rightTotal > 0 ? Math.round((rCount / rightTotal) * 100) : 0;
+          const maxPct = Math.max(lPct, rPct, 1);
+          const adv = leftTotal > 0 && rightTotal > 0 ? calcAdv(lPct, rPct, "higher") : "none";
+
+          return (
+            <div key={key} className="cmp-method-duel-row">
+              <div className={cn("cmp-method-duel-end cmp-method-duel-end--left", adv === "left" && "cmp-method-duel-end--adv")}>
+                <div className="cmp-method-duel-stats">
+                  <span className="cmp-method-duel-count">{lCount}</span>
+                  <span className="cmp-method-duel-pct">{leftTotal > 0 ? `${lPct}%` : "—"}</span>
+                </div>
+                <div className="cmp-method-duel-bar-track">
+                  <div
+                    className="cmp-method-duel-bar-fill cmp-method-duel-bar-fill--left"
+                    style={{ width: `${(lPct / maxPct) * 100}%`, background: FINISH_COLORS[key] }}
+                  />
+                </div>
+              </div>
+
+              <div className="cmp-method-duel-center">
+                <span
+                  className="cmp-method-tip"
+                  data-tip={FINISH_TOOLTIPS[key]}
+                  tabIndex={0}
+                  aria-label={`${FINISH_LABELS[key]}: ${FINISH_TOOLTIPS[key]}`}
+                >
+                  <span className="cmp-method-abbr">{FINISH_ABBR[key]}</span>
+                  <span className="cmp-method-full">{FINISH_LABELS[key]}</span>
+                </span>
+              </div>
+
+              <div className={cn("cmp-method-duel-end cmp-method-duel-end--right", adv === "right" && "cmp-method-duel-end--adv")}>
+                <div className="cmp-method-duel-bar-track">
+                  <div
+                    className="cmp-method-duel-bar-fill cmp-method-duel-bar-fill--right"
+                    style={{ width: `${(rPct / maxPct) * 100}%`, background: FINISH_COLORS[key] }}
+                  />
+                </div>
+                <div className="cmp-method-duel-stats">
+                  <span className="cmp-method-duel-count">{rCount}</span>
+                  <span className="cmp-method-duel-pct">{rightTotal > 0 ? `${rPct}%` : "—"}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="cmp-method-duel-foot">
+        <span>{leftTotal} {mode === "win" ? "wins" : "losses"} logged</span>
+        <span>{rightTotal} {mode === "win" ? "wins" : "losses"} logged</span>
       </div>
     </div>
   );
 }
 
 function RecordSection({ left, right, sport }: { left: FighterData; right: FighterData; sport: string | undefined }) {
+  const lf = left.fighter!;
+  const rf = right.fighter!;
   const ls = left.activeSport as AnyRow | null;
   const rs = right.activeSport as AnyRow | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1039,76 +1675,119 @@ function RecordSection({ left, right, sport }: { left: FighterData; right: Fight
   const rAmateurTotal = rs ? rs.amateur_w + rs.amateur_l + rs.amateur_d : 0;
   const lRate = ls ? winRate(ls.pro_w, ls.pro_l, ls.pro_d) : null;
   const rRate = rs ? winRate(rs.pro_w, rs.pro_l, rs.pro_d) : null;
+  const sportTag = sport ? sportLabel(sport) : null;
+  const lLevel = ls?.level ? (ls.level === "pro" ? "Pro" : "Amateur") : null;
+  const rLevel = rs?.level ? (rs.level === "pro" ? "Pro" : "Amateur") : null;
+
+  const hasMeta = lAmateurTotal > 0 || rAmateurTotal > 0
+    || !!ls?.level || !!rs?.level
+    || lWc.length > 0 || rWc.length > 0
+    || lFs.length > 0 || rFs.length > 0;
 
   return (
-    <div className="cmp-compare-card">
-      <CompareRow
-        label="Pro record"
-        left={ls ? <RecordBlock w={ls.pro_w} l={ls.pro_l} d={ls.pro_d} /> : "—"}
-        right={rs ? <RecordBlock w={rs.pro_w} l={rs.pro_l} d={rs.pro_d} /> : "—"}
-        adv={calcAdv(ls?.pro_w, rs?.pro_w, "higher")}
+    <div className="cmp-record-dossier">
+      <div className="cmp-record-hero-grid">
+        {ls ? (
+          <RecordHeroCard
+            name={lf.first_name}
+            sportLevel={sportTag && lLevel ? `${sportTag} · ${lLevel}` : sportTag ?? lLevel}
+            w={ls.pro_w}
+            l={ls.pro_l}
+            d={ls.pro_d}
+            rate={lRate}
+            form={left.form}
+            side="left"
+          />
+        ) : (
+          <div className="cmp-record-hero-card cmp-record-hero-card--left">
+            <p className="cmp-record-hero-name">{lf.first_name}</p>
+            <span className="text-sm text-muted-foreground">No record for this sport</span>
+          </div>
+        )}
+        <div className="cmp-record-hero-divider" aria-hidden />
+        {rs ? (
+          <RecordHeroCard
+            name={rf.first_name}
+            sportLevel={sportTag && rLevel ? `${sportTag} · ${rLevel}` : sportTag ?? rLevel}
+            w={rs.pro_w}
+            l={rs.pro_l}
+            d={rs.pro_d}
+            rate={rRate}
+            form={right.form}
+            side="right"
+          />
+        ) : (
+          <div className="cmp-record-hero-card cmp-record-hero-card--right">
+            <p className="cmp-record-hero-name">{rf.first_name}</p>
+            <span className="text-sm text-muted-foreground">No record for this sport</span>
+          </div>
+        )}
+      </div>
+
+      <TitleFightDuel
+        leftName={lf.first_name}
+        rightName={rf.first_name}
+        left={left.careerHighlights}
+        right={right.careerHighlights}
       />
-      {(lRate != null || rRate != null) && (
-        <CompareRow
-          label="Win rate"
-          left={lRate != null ? (
-            <span className="font-display text-2xl tracking-wide">{lRate}%</span>
-          ) : "—"}
-          right={rRate != null ? (
-            <span className="font-display text-2xl tracking-wide">{rRate}%</span>
-          ) : "—"}
-          adv={calcAdv(lRate, rRate, "higher")}
-        />
-      )}
-      <CompareRow
-        label="Win methods"
-        left={<WinMethodsBar {...left.winMethods} />}
-        right={<WinMethodsBar {...right.winMethods} />}
+
+      <MethodDuelPanel
+        mode="win"
+        leftName={lf.first_name}
+        rightName={rf.first_name}
+        left={left.winBreakdown}
+        right={right.winBreakdown}
       />
-      {(lAmateurTotal > 0 || rAmateurTotal > 0) && (
-        <CompareRow
-          label="Amateur"
-          left={lAmateurTotal > 0 && ls ? `${ls.amateur_w}W ${ls.amateur_l}L ${ls.amateur_d}D` : "—"}
-          right={rAmateurTotal > 0 && rs ? `${rs.amateur_w}W ${rs.amateur_l}L ${rs.amateur_d}D` : "—"}
-          adv={calcAdv(lAmateurTotal > 0 ? ls?.amateur_w : null, rAmateurTotal > 0 ? rs?.amateur_w : null, "higher")}
-        />
-      )}
-      {(ls?.level || rs?.level) && (
-        <CompareRow
-          label="Level"
-          left={ls?.level ? (ls.level === "pro" ? "Professional" : "Amateur") : "—"}
-          right={rs?.level ? (rs.level === "pro" ? "Professional" : "Amateur") : "—"}
-        />
-      )}
-      {(lWc.length > 0 || rWc.length > 0) && (
-        <CompareRow
-          label="Weight class"
-          left={lWc.length > 0 ? (
-            <div className="flex flex-wrap justify-end gap-1">
-              {lWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
-            </div>
-          ) : "—"}
-          right={rWc.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {rWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
-            </div>
-          ) : "—"}
-        />
-      )}
-      {(lFs.length > 0 || rFs.length > 0) && (
-        <CompareRow
-          label="Fight style"
-          left={lFs.length > 0 ? (
-            <div className="flex flex-wrap justify-end gap-1">
-              {lFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
-            </div>
-          ) : "—"}
-          right={rFs.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
-              {rFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
-            </div>
-          ) : "—"}
-        />
+
+      <MethodDuelPanel
+        mode="loss"
+        leftName={lf.first_name}
+        rightName={rf.first_name}
+        left={left.lossBreakdown}
+        right={right.lossBreakdown}
+      />
+
+      {hasMeta && (
+        <div className="cmp-compare-card cmp-record-meta">
+          {(lAmateurTotal > 0 || rAmateurTotal > 0) && (
+            <CompareRow
+              label="Amateur"
+              left={lAmateurTotal > 0 && ls ? `${ls.amateur_w}W ${ls.amateur_l}L ${ls.amateur_d}D` : "—"}
+              right={rAmateurTotal > 0 && rs ? `${rs.amateur_w}W ${rs.amateur_l}L ${rs.amateur_d}D` : "—"}
+              adv={calcAdv(lAmateurTotal > 0 ? ls?.amateur_w : null, rAmateurTotal > 0 ? rs?.amateur_w : null, "higher")}
+            />
+          )}
+          {(lWc.length > 0 || rWc.length > 0) && (
+            <CompareRow
+              label="Weight class"
+              left={lWc.length > 0 ? (
+                <div className="flex flex-wrap justify-end gap-1">
+                  {lWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
+                </div>
+              ) : "—"}
+              right={rWc.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {rWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
+                </div>
+              ) : "—"}
+            />
+          )}
+          {(lFs.length > 0 || rFs.length > 0) && (
+            <CompareRow
+              label="Fight style"
+              left={lFs.length > 0 ? (
+                <div className="flex flex-wrap justify-end gap-1">
+                  {lFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
+                </div>
+              ) : "—"}
+              right={rFs.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {rFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
+                </div>
+              ) : "—"}
+            />
+          )}
+        </div>
       )}
     </div>
   );
@@ -1118,59 +1797,267 @@ function BookingSection({ left, right }: { left: FighterData; right: FighterData
   const { format } = useCurrency();
   const lf = left.fighter!;
   const rf = right.fighter!;
+  const readiness = bookingReadiness(lf, rf);
+  const availAdv = calcAdv(
+    AVAIL_RANK[lf.availability_status ?? "unavailable"],
+    AVAIL_RANK[rf.availability_status ?? "unavailable"],
+    "higher",
+  );
+  const purseAdv = calcAdv(lf.purse_usd, rf.purse_usd, "lower");
+  const prepAdv = calcAdv(lf.preparation_weeks, rf.preparation_weeks, "lower");
+  const maxPurse = Math.max(lf.purse_usd ?? 0, rf.purse_usd ?? 0, 1);
+  const maxPrep = Math.max(lf.preparation_weeks ?? 0, rf.preparation_weeks ?? 0, 1);
+
+  const hasDetails = lf.promotional_status || rf.promotional_status
+    || lf.team_name || rf.team_name
+    || lf.current_city || rf.current_city
+    || lf.promoter_name || rf.promoter_name;
 
   return (
-    <div className="cmp-compare-card">
-      <CompareRow
-        label="Availability"
-        left={<AvailabilityBadge status={lf.availability_status} />}
-        right={<AvailabilityBadge status={rf.availability_status} />}
-      />
-      {(lf.available_from || rf.available_from) && (
-        <CompareRow
-          label="Available from"
-          left={lf.available_from
-            ? new Date(lf.available_from).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-            : "—"}
-          right={rf.available_from
-            ? new Date(rf.available_from).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-            : "—"}
+    <div className="cmp-booking-dossier">
+      <div className={cn("cmp-booking-readiness", `cmp-booking-readiness--${readiness.tone}`)}>
+        <span className="cmp-booking-readiness-dot" aria-hidden />
+        <p className="cmp-booking-readiness-text">{readiness.message}</p>
+      </div>
+
+      <div className="cmp-booking-hero-grid">
+        <BookingHeroCard
+          name={lf.first_name}
+          fighter={lf}
+          side="left"
+          adv={availAdv === "left"}
         />
-      )}
-      {(lf.purse_usd != null || rf.purse_usd != null) && (
-        <CompareRow
-          label="Fight purse"
-          left={lf.purse_usd != null ? (
-            <span className="font-semibold">{format(lf.purse_usd)}{lf.purse_negotiable ? <span className="ml-1 text-xs text-muted-foreground font-normal">Neg.</span> : null}</span>
-          ) : "—"}
-          right={rf.purse_usd != null ? (
-            <span className="font-semibold">{format(rf.purse_usd)}{rf.purse_negotiable ? <span className="ml-1 text-xs text-muted-foreground font-normal">Neg.</span> : null}</span>
-          ) : "—"}
+        <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+        <BookingHeroCard
+          name={rf.first_name}
+          fighter={rf}
+          side="right"
+          adv={availAdv === "right"}
         />
+      </div>
+
+      <div className="cmp-booking-purse">
+        <div className="cmp-booking-purse-head">
+          <span className="cmp-booking-purse-eyebrow">Fight purse</span>
+          <span className="cmp-booking-purse-hint">Ask vs ask · lower may ease budget</span>
+        </div>
+        <div className="cmp-booking-purse-grid">
+          <div className={cn("cmp-booking-purse-side", purseAdv === "left" && "cmp-booking-purse-side--adv")}>
+            <span className="cmp-booking-purse-fighter">{lf.first_name}</span>
+            <div className="cmp-booking-purse-body">
+              {lf.purse_usd != null ? (
+                <>
+                  <span className="cmp-booking-purse-val">{format(lf.purse_usd)}</span>
+                  <span className="cmp-booking-purse-tag">
+                    {lf.purse_negotiable ? "Negotiable" : "Fixed ask"}
+                  </span>
+                  <div className="cmp-booking-purse-bar">
+                    <div
+                      className="cmp-booking-purse-bar-fill"
+                      style={{ width: `${((lf.purse_usd ?? 0) / maxPurse) * 100}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <span className="cmp-booking-purse-empty">Purse not listed</span>
+              )}
+            </div>
+          </div>
+
+          <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+
+          <div className={cn("cmp-booking-purse-side cmp-booking-purse-side--right", purseAdv === "right" && "cmp-booking-purse-side--adv")}>
+            <span className="cmp-booking-purse-fighter">{rf.first_name}</span>
+            <div className="cmp-booking-purse-body">
+              {rf.purse_usd != null ? (
+                <>
+                  <span className="cmp-booking-purse-val">{format(rf.purse_usd)}</span>
+                  <span className="cmp-booking-purse-tag">
+                    {rf.purse_negotiable ? "Negotiable" : "Fixed ask"}
+                  </span>
+                  <div className="cmp-booking-purse-bar">
+                    <div
+                      className="cmp-booking-purse-bar-fill"
+                      style={{ width: `${((rf.purse_usd ?? 0) / maxPurse) * 100}%` }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <span className="cmp-booking-purse-empty">Purse not listed</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="cmp-booking-logistics">
+        <div className="cmp-booking-logistics-head">
+          <h3 className="cmp-booking-logistics-title">Lead time & flexibility</h3>
+          <p className="cmp-booking-logistics-sub">Prep required and short-notice appetite</p>
+        </div>
+
+        <div className="cmp-booking-logistics-row">
+          <div className="cmp-booking-logistics-label">
+            <Clock className="h-3.5 w-3.5" aria-hidden />
+            <span>Prep time</span>
+          </div>
+          <div className={cn("cmp-booking-logistics-end cmp-booking-logistics-end--left", prepAdv === "left" && "cmp-booking-logistics-end--adv")}>
+            <span className="cmp-booking-logistics-val">{prepLabel(lf.preparation_weeks)}</span>
+            {lf.preparation_weeks != null && (
+              <div className="cmp-booking-logistics-bar">
+                <div
+                  className="cmp-booking-logistics-bar-fill cmp-booking-logistics-bar-fill--left"
+                  style={{
+                    width: `${((maxPrep - (lf.preparation_weeks ?? 0)) / maxPrep) * 100}%`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <div className={cn("cmp-booking-logistics-end cmp-booking-logistics-end--right", prepAdv === "right" && "cmp-booking-logistics-end--adv")}>
+            {rf.preparation_weeks != null && (
+              <div className="cmp-booking-logistics-bar">
+                <div
+                  className="cmp-booking-logistics-bar-fill cmp-booking-logistics-bar-fill--right"
+                  style={{
+                    width: `${((maxPrep - (rf.preparation_weeks ?? 0)) / maxPrep) * 100}%`,
+                  }}
+                />
+              </div>
+            )}
+            <span className="cmp-booking-logistics-val">{prepLabel(rf.preparation_weeks)}</span>
+          </div>
+        </div>
+
+        <div className="cmp-booking-logistics-row">
+          <div className="cmp-booking-logistics-label">
+            <Zap className="h-3.5 w-3.5" aria-hidden />
+            <span>Short notice</span>
+          </div>
+          <div className={cn(
+            "cmp-booking-logistics-end cmp-booking-logistics-end--left",
+            lf.open_to_short_notice && !rf.open_to_short_notice && "cmp-booking-logistics-end--adv",
+          )}>
+            <span className={cn(
+              "cmp-booking-short",
+              lf.open_to_short_notice ? "cmp-booking-short--yes" : "cmp-booking-short--no",
+            )}>
+              {lf.open_to_short_notice ? <><Zap className="h-3 w-3" />Yes</> : "No"}
+            </span>
+          </div>
+          <div className={cn(
+            "cmp-booking-logistics-end cmp-booking-logistics-end--right",
+            rf.open_to_short_notice && !lf.open_to_short_notice && "cmp-booking-logistics-end--adv",
+          )}>
+            <span className={cn(
+              "cmp-booking-short",
+              rf.open_to_short_notice ? "cmp-booking-short--yes" : "cmp-booking-short--no",
+            )}>
+              {rf.open_to_short_notice ? <><Zap className="h-3 w-3" />Yes</> : "No"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {hasDetails && (
+        <div className="cmp-compare-card cmp-booking-meta">
+          {(lf.promotional_status || rf.promotional_status) && (
+            <CompareRow
+              label="Promotion"
+              left={
+                <span className="inline-flex flex-col items-end gap-0.5">
+                  <span className="inline-flex items-center gap-1.5">
+                    {lf.promotional_status === "exclusive"
+                      ? <Lock className="h-3 w-3 text-muted-foreground" />
+                      : <Globe className="h-3 w-3 text-muted-foreground" />}
+                    {promoLabel(lf.promotional_status)}
+                  </span>
+                  {lf.promoter_name && (
+                    <span className="text-[10px] text-muted-foreground">{lf.promoter_name}</span>
+                  )}
+                </span>
+              }
+              right={
+                <span className="inline-flex flex-col items-start gap-0.5">
+                  <span className="inline-flex items-center gap-1.5">
+                    {rf.promotional_status === "exclusive"
+                      ? <Lock className="h-3 w-3 text-muted-foreground" />
+                      : <Globe className="h-3 w-3 text-muted-foreground" />}
+                    {promoLabel(rf.promotional_status)}
+                  </span>
+                  {rf.promoter_name && (
+                    <span className="text-[10px] text-muted-foreground">{rf.promoter_name}</span>
+                  )}
+                </span>
+              }
+            />
+          )}
+          {(lf.team_name || rf.team_name) && (
+            <CompareRow label="Team / Gym" left={lf.team_name ?? "—"} right={rf.team_name ?? "—"} />
+          )}
+          {(lf.current_city || rf.current_city) && (
+            <CompareRow
+              label="Location"
+              left={
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                  {locationLabel(lf)}
+                </span>
+              }
+              right={
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3 text-muted-foreground" />
+                  {locationLabel(rf)}
+                </span>
+              }
+            />
+          )}
+        </div>
       )}
-      {(lf.preparation_weeks != null || rf.preparation_weeks != null) && (
-        <CompareRow
-          label="Prep weeks"
-          left={lf.preparation_weeks != null ? `${lf.preparation_weeks}w` : "—"}
-          right={rf.preparation_weeks != null ? `${rf.preparation_weeks}w` : "—"}
-          adv={calcAdv(lf.preparation_weeks, rf.preparation_weeks, "lower")}
-        />
-      )}
-      <CompareRow
-        label="Short notice"
-        left={lf.open_to_short_notice ? (
-          <span className="inline-flex items-center gap-1 text-emerald-400"><Zap className="h-3 w-3" />Yes</span>
-        ) : <span className="text-muted-foreground">No</span>}
-        right={rf.open_to_short_notice ? (
-          <span className="inline-flex items-center gap-1 text-emerald-400"><Zap className="h-3 w-3" />Yes</span>
-        ) : <span className="text-muted-foreground">No</span>}
-      />
-      {(lf.promotional_status || rf.promotional_status) && (
-        <CompareRow label="Promo status" left={lf.promotional_status ?? "—"} right={rf.promotional_status ?? "—"} />
-      )}
-      {(lf.team_name || rf.team_name) && (
-        <CompareRow label="Team / Gym" left={lf.team_name ?? "—"} right={rf.team_name ?? "—"} />
-      )}
+    </div>
+  );
+}
+
+function BookingHeroCard({
+  name, fighter, side, adv,
+}: {
+  name: string;
+  fighter: Fighter;
+  side: "left" | "right";
+  adv: boolean;
+}) {
+  return (
+    <div className={cn(
+      "cmp-booking-hero-card",
+      side === "left" ? "cmp-booking-hero-card--left" : "cmp-booking-hero-card--right",
+      adv && "cmp-booking-hero-card--adv",
+    )}>
+      <span className="cmp-booking-hero-name">{name}</span>
+      <div className="cmp-booking-hero-body">
+        <AvailabilityBadge status={fighter.availability_status} />
+        <div className="cmp-booking-hero-facts">
+          <div className="cmp-booking-hero-fact">
+            <Calendar className="h-3 w-3" aria-hidden />
+            <span className="cmp-booking-hero-fact-lbl">Available from</span>
+            <span className="cmp-booking-hero-fact-val">{formatAvailableFrom(fighter)}</span>
+          </div>
+          <div className="cmp-booking-hero-fact">
+            <Clock className="h-3 w-3" aria-hidden />
+            <span className="cmp-booking-hero-fact-lbl">Prep needed</span>
+            <span className="cmp-booking-hero-fact-val">{prepLabel(fighter.preparation_weeks)}</span>
+          </div>
+          <div className="cmp-booking-hero-fact">
+            <Zap className="h-3 w-3" aria-hidden />
+            <span className="cmp-booking-hero-fact-lbl">Short notice</span>
+            <span className={cn(
+              "cmp-booking-hero-fact-val",
+              fighter.open_to_short_notice && "text-emerald-400",
+            )}>
+              {fighter.open_to_short_notice ? "Yes" : "No"}
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1178,167 +2065,257 @@ function BookingSection({ left, right }: { left: FighterData; right: FighterData
 function VisibilitySection({ left, right }: { left: FighterData; right: FighterData }) {
   const lf = left.fighter!;
   const rf = right.fighter!;
+  const insight = visibilityInsight(lf.first_name, rf.first_name, left, right);
+  const followerAdv = calcAdv(left.followerCount, right.followerCount, "higher");
+  const maxFollowers = Math.max(left.followerCount ?? 0, right.followerCount ?? 0, 1);
+  const lIg = instagramHandle(lf.instagram);
+  const rIg = instagramHandle(rf.instagram);
+  const lGrowth = useMemo(() => computeIgGrowth(left.followerSnapshots), [left.followerSnapshots]);
+  const rGrowth = useMemo(() => computeIgGrowth(right.followerSnapshots), [right.followerSnapshots]);
+  const growthAdv = calcAdv(lGrowth?.deltaPctNum, rGrowth?.deltaPctNum, "higher");
+  const hasFollowers = left.followerCount != null || right.followerCount != null;
+  const hasGrowth = lGrowth != null || rGrowth != null;
+  const hasSocial = lIg || rIg || hasFollowers;
 
-  return (
-    <div className="cmp-compare-card">
-      <CompareRow
-        label="Instagram"
-        left={lf.instagram ? (
-          <span className="inline-flex items-center gap-1"><Instagram className="h-3 w-3" />@{lf.instagram}</span>
-        ) : "—"}
-        right={rf.instagram ? (
-          <span className="inline-flex items-center gap-1"><Instagram className="h-3 w-3" />@{rf.instagram}</span>
-        ) : "—"}
-      />
-      {(left.followerCount !== null || right.followerCount !== null) && (
-        <CompareRow
-          label="Followers"
-          left={left.followerCount != null ? (
-            <span className="font-display text-xl tracking-wide">{left.followerCount.toLocaleString()}</span>
-          ) : "—"}
-          right={right.followerCount != null ? (
-            <span className="font-display text-xl tracking-wide">{right.followerCount.toLocaleString()}</span>
-          ) : "—"}
-          adv={calcAdv(left.followerCount, right.followerCount, "higher")}
-        />
-      )}
-    </div>
-  );
-}
-
-function TitleFightsBar({ total, won }: { total: number; won: number }) {
-  if (total === 0) return <span className="text-sm text-muted-foreground">—</span>;
-  const lost = total - won;
-  return (
-    <div>
-      <div className="flex items-baseline justify-center gap-1.5">
-        <span className="font-display text-2xl text-amber-400">{won}</span>
-        <span className="text-[10px] font-bold text-amber-400/60 uppercase">won</span>
-        <span className="text-muted-foreground/30 mx-0.5">·</span>
-        <span className="font-display text-2xl text-muted-foreground">{total}</span>
-        <span className="text-[10px] font-bold text-muted-foreground/50 uppercase">total</span>
+  if (!hasSocial) {
+    return (
+      <div className="cmp-visibility-dossier">
+        <div className="cmp-visibility-insight cmp-visibility-insight--empty">
+          <span className="cmp-visibility-insight-dot" aria-hidden />
+          <p className="cmp-visibility-insight-text">{insight}</p>
+        </div>
+        <p className="cmp-visibility-empty">No Instagram or follower data on record for either fighter.</p>
       </div>
-      <div className="cmp-record-bar mt-1.5 max-w-[6rem] mx-auto">
-        <div className="bg-amber-400/70" style={{ width: `${(won / total) * 100}%` }} />
-        <div className="bg-muted-foreground/20" style={{ width: `${(lost / total) * 100}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function CareerSection({ left, right }: { left: FighterData; right: FighterData }) {
-  const hasTitles = left.careerHighlights.titleFights > 0 || right.careerHighlights.titleFights > 0;
-  const hasBonuses = left.careerHighlights.bonusCount > 0 || right.careerHighlights.bonusCount > 0;
-  if (!hasTitles && !hasBonuses) {
-    return <p className="text-sm text-muted-foreground py-4 text-center">No title fight or bonus data on record</p>;
+    );
   }
 
   return (
-    <div className="cmp-compare-card">
-      {hasTitles && (
-        <CompareRow
-          label="Title fights"
-          left={<TitleFightsBar total={left.careerHighlights.titleFights} won={left.careerHighlights.titlesWon} />}
-          right={<TitleFightsBar total={right.careerHighlights.titleFights} won={right.careerHighlights.titlesWon} />}
-          adv={calcAdv(left.careerHighlights.titlesWon, right.careerHighlights.titlesWon, "higher")}
+    <div className="cmp-visibility-dossier">
+      <div className="cmp-visibility-insight">
+        <span className="cmp-visibility-insight-dot" aria-hidden />
+        <p className="cmp-visibility-insight-text">{insight}</p>
+      </div>
+
+      <div className="cmp-visibility-hero-grid">
+        <VisibilityHeroCard
+          name={lf.first_name}
+          handle={lIg}
+          followers={left.followerCount}
+          growth={lGrowth}
+          side="left"
+          adv={followerAdv === "left"}
         />
-      )}
-      {hasBonuses && (
-        <CompareRow
-          label="Bonuses"
-          left={<span className="font-display text-2xl">{left.careerHighlights.bonusCount}</span>}
-          right={<span className="font-display text-2xl">{right.careerHighlights.bonusCount}</span>}
-          adv={calcAdv(left.careerHighlights.bonusCount, right.careerHighlights.bonusCount, "higher")}
+        <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+        <VisibilityHeroCard
+          name={rf.first_name}
+          handle={rIg}
+          followers={right.followerCount}
+          growth={rGrowth}
+          side="right"
+          adv={followerAdv === "right"}
         />
-      )}
-    </div>
-  );
-}
+      </div>
 
-function FinishDonut({ breakdown, centerLabel }: { breakdown: FinishBreakdown; centerLabel: string }) {
-  const total = breakdown.ko + breakdown.sub + breakdown.dec + breakdown.other;
-  if (total === 0) return <p className="text-xs text-muted-foreground py-4 text-center">No data</p>;
-
-  const size = 88, r = 32, innerR = 19, cx = 44, cy = 44;
-  let angle = -Math.PI / 2;
-  const arcs = FINISH_ORDER.filter((k) => breakdown[k] > 0).map((key) => {
-    const sweep = (breakdown[key] / total) * Math.PI * 2;
-    const x1 = cx + r * Math.cos(angle);
-    const y1 = cy + r * Math.sin(angle);
-    angle += sweep;
-    const x2 = cx + r * Math.cos(angle);
-    const y2 = cy + r * Math.sin(angle);
-    return { key, d: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${sweep > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z` };
-  });
-
-  const legend = FINISH_ORDER.map((k) => ({
-    key: k, value: breakdown[k], pct: Math.round((breakdown[k] / total) * 100),
-  }));
-
-  return (
-    <div className="flex items-center gap-4">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden className="shrink-0">
-        {arcs.map((a) => (
-          <path key={a.key} d={a.d} fill={FINISH_COLORS[a.key]} stroke="rgba(10,10,15,0.9)" strokeWidth={1.5} />
-        ))}
-        <circle cx={cx} cy={cy} r={innerR} fill="rgba(18,18,22,0.96)" />
-        <text x={cx} y={cy - 1} textAnchor="middle" fill="#fff" fontSize={14} className="font-display">{total}</text>
-        <text x={cx} y={cy + 9} textAnchor="middle" fill="rgba(255,255,255,0.32)" fontSize={7}>{centerLabel}</text>
-      </svg>
-      <div className="flex flex-col gap-1.5">
-        {legend.map((item) => (
-          <div key={item.key} className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-[2px] shrink-0"
-              style={{ background: FINISH_COLORS[item.key], opacity: item.value > 0 ? 1 : 0.25 }} />
-            <span className="text-[10px] text-muted-foreground flex-1">{FINISH_LABELS[item.key]}</span>
-            <span className={cn("text-[10px] font-bold tabular-nums", item.value > 0 ? "text-foreground" : "text-muted-foreground/30")}>
-              {item.pct}%
+      {hasFollowers && (
+        <div className="cmp-visibility-reach">
+          <div className="cmp-visibility-reach-head">
+            <span className="cmp-visibility-reach-eyebrow">Instagram reach</span>
+            <span className="cmp-visibility-reach-hint">
+              {hasGrowth ? "Latest snapshot · tracked history below" : "Latest follower snapshot"}
             </span>
           </div>
-        ))}
+          <div className="cmp-visibility-reach-grid">
+            <div className={cn("cmp-visibility-reach-side", followerAdv === "left" && "cmp-visibility-reach-side--adv")}>
+              <span className="cmp-visibility-reach-fighter">{lf.first_name}</span>
+              <div className="cmp-visibility-reach-body">
+                {left.followerCount != null ? (
+                  <>
+                    <span className="cmp-visibility-reach-val">{left.followerCount.toLocaleString()}</span>
+                    <span className="cmp-visibility-reach-tag">followers</span>
+                    <div className="cmp-visibility-reach-bar">
+                      <div
+                        className="cmp-visibility-reach-bar-fill"
+                        style={{ width: `${((left.followerCount ?? 0) / maxFollowers) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <span className="cmp-visibility-reach-empty">No snapshot</span>
+                )}
+              </div>
+            </div>
+
+            <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+
+            <div className={cn("cmp-visibility-reach-side cmp-visibility-reach-side--right", followerAdv === "right" && "cmp-visibility-reach-side--adv")}>
+              <span className="cmp-visibility-reach-fighter">{rf.first_name}</span>
+              <div className="cmp-visibility-reach-body">
+                {right.followerCount != null ? (
+                  <>
+                    <span className="cmp-visibility-reach-val">{right.followerCount.toLocaleString()}</span>
+                    <span className="cmp-visibility-reach-tag">followers</span>
+                    <div className="cmp-visibility-reach-bar">
+                      <div
+                        className="cmp-visibility-reach-bar-fill"
+                        style={{ width: `${((right.followerCount ?? 0) / maxFollowers) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <span className="cmp-visibility-reach-empty">No snapshot</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasGrowth && (
+        <div className="cmp-visibility-growth">
+          <div className="cmp-visibility-growth-head">
+            <span className="cmp-visibility-growth-eyebrow">Follower trend</span>
+            <span className="cmp-visibility-growth-hint">From tracked snapshots</span>
+          </div>
+          <div className="cmp-visibility-growth-grid">
+            <FollowerGrowthCard
+              name={lf.first_name}
+              growth={lGrowth}
+              side="left"
+              adv={growthAdv === "left"}
+            />
+            <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+            <FollowerGrowthCard
+              name={rf.first_name}
+              growth={rGrowth}
+              side="right"
+              adv={growthAdv === "right"}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VisibilityHeroCard({
+  name, handle, followers, growth, side, adv,
+}: {
+  name: string;
+  handle: string | null;
+  followers: number | null;
+  growth: IgGrowthStats | null;
+  side: "left" | "right";
+  adv: boolean;
+}) {
+  const url = handle ? `https://instagram.com/${handle}` : null;
+
+  return (
+    <div className={cn(
+      "cmp-visibility-hero-card",
+      `cmp-visibility-hero-card--${side}`,
+      adv && "cmp-visibility-hero-card--adv",
+    )}>
+      <p className="cmp-visibility-hero-name">{name}</p>
+      <div className="cmp-visibility-hero-body">
+        {handle && url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="cmp-visibility-hero-ig">
+            <Instagram className="h-4 w-4" aria-hidden />
+            <span>@{handle}</span>
+          </a>
+        ) : (
+          <span className="cmp-visibility-hero-ig cmp-visibility-hero-ig--empty">No Instagram</span>
+        )}
+        {followers != null ? (
+          <div className="cmp-visibility-hero-followers">
+            <span className="cmp-visibility-hero-followers-val">{followers.toLocaleString()}</span>
+            <span className="cmp-visibility-hero-followers-lbl">followers</span>
+            {growth && (
+              <span className={cn(
+                "cmp-visibility-hero-growth",
+                growth.delta >= 0 ? "cmp-visibility-hero-growth--up" : "cmp-visibility-hero-growth--down",
+              )}>
+                {growth.delta >= 0 ? "+" : ""}{growth.delta.toLocaleString()} ({growth.deltaPct})
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="cmp-visibility-hero-followers-empty">Follower count not tracked</span>
+        )}
       </div>
     </div>
   );
 }
 
-function BreakdownSection({ left, right }: { left: FighterData; right: FighterData }) {
-  const lf = left.fighter!;
-  const rf = right.fighter!;
-  const lWinTotal = Object.values(left.winBreakdown).reduce((a, b) => a + b, 0);
-  const rWinTotal = Object.values(right.winBreakdown).reduce((a, b) => a + b, 0);
-  const lLossTotal = Object.values(left.lossBreakdown).reduce((a, b) => a + b, 0);
-  const rLossTotal = Object.values(right.lossBreakdown).reduce((a, b) => a + b, 0);
+function FollowerGrowthCard({
+  name, growth, side, adv,
+}: {
+  name: string;
+  growth: IgGrowthStats | null;
+  side: "left" | "right";
+  adv: boolean;
+}) {
+  const gradId = `cmp-ig-grad-${side}`;
 
-  if (lWinTotal + rWinTotal + lLossTotal + rLossTotal === 0) {
-    return <p className="text-sm text-muted-foreground py-4 text-center">No finish method data on record</p>;
+  if (!growth) {
+    return (
+      <div className={cn("cmp-visibility-growth-card", `cmp-visibility-growth-card--${side}`)}>
+        <span className="cmp-visibility-growth-fighter">{name}</span>
+        <p className="cmp-visibility-growth-empty">Need 2+ snapshots to show trend</p>
+      </div>
+    );
   }
 
+  const lastPt = growth.coords[growth.coords.length - 1];
+  const firstPt = growth.coords[0];
+
   return (
-    <div className="space-y-3">
-      {(lWinTotal > 0 || rWinTotal > 0) && (
-        <div className="cmp-breakdown-grid">
-          <div className="cmp-breakdown-card">
-            <p className="cmp-breakdown-title">How {lf.first_name} wins</p>
-            <FinishDonut breakdown={left.winBreakdown} centerLabel="wins" />
-          </div>
-          <div className="cmp-breakdown-card">
-            <p className="cmp-breakdown-title">How {rf.first_name} wins</p>
-            <FinishDonut breakdown={right.winBreakdown} centerLabel="wins" />
-          </div>
-        </div>
-      )}
-      {(lLossTotal > 0 || rLossTotal > 0) && (
-        <div className="cmp-breakdown-grid">
-          <div className="cmp-breakdown-card">
-            <p className="cmp-breakdown-title">How {lf.first_name} loses</p>
-            <FinishDonut breakdown={left.lossBreakdown} centerLabel="losses" />
-          </div>
-          <div className="cmp-breakdown-card">
-            <p className="cmp-breakdown-title">How {rf.first_name} loses</p>
-            <FinishDonut breakdown={right.lossBreakdown} centerLabel="losses" />
-          </div>
-        </div>
-      )}
+    <div className={cn(
+      "cmp-visibility-growth-card",
+      `cmp-visibility-growth-card--${side}`,
+      adv && "cmp-visibility-growth-card--adv",
+    )}>
+      <span className="cmp-visibility-growth-fighter">{name}</span>
+      <div className="cmp-visibility-growth-stats">
+        <span className="cmp-visibility-growth-val">{growth.latest.toLocaleString()}</span>
+        <span className={cn(
+          "cmp-visibility-growth-delta",
+          growth.delta >= 0 ? "cmp-visibility-growth-delta--up" : "cmp-visibility-growth-delta--down",
+        )}>
+          {growth.delta >= 0 ? "+" : ""}{growth.delta.toLocaleString()} ({growth.deltaPct})
+        </span>
+      </div>
+      <p className="cmp-visibility-growth-meta">
+        {growth.days} days · {growth.snapshotCount} snapshots
+      </p>
+      <svg
+        className="cmp-visibility-growth-chart"
+        width="100%"
+        height={growth.height}
+        viewBox={`0 0 ${growth.width} ${growth.height}`}
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden
+      >
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#E8001D" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#E8001D" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={growth.area} fill={`url(#${gradId})`} />
+        <path
+          d={growth.line}
+          fill="none"
+          stroke="#E8001D"
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity="0.85"
+        />
+        <circle cx={lastPt.x} cy={lastPt.y} r="4" fill="#E8001D" />
+      </svg>
+      <div className="cmp-visibility-growth-range">
+        <span>{firstPt.label} · {firstPt.count.toLocaleString()}</span>
+        <span>{lastPt.label} · {lastPt.count.toLocaleString()}</span>
+      </div>
     </div>
   );
 }
@@ -1346,78 +2323,200 @@ function BreakdownSection({ left, right }: { left: FighterData; right: FighterDa
 function HistorySection({ left, right }: { left: FighterData; right: FighterData }) {
   const lf = left.fighter!;
   const rf = right.fighter!;
+  const insight = historyInsight(lf.first_name, rf.first_name, left, right);
+  const lHot = left.form.streak >= 2 && left.form.type === "W";
+  const rHot = right.form.streak >= 2 && right.form.type === "W";
+  const lCold = left.form.streak >= 2 && left.form.type === "L";
+  const rCold = right.form.streak >= 2 && right.form.type === "L";
 
   return (
-    <div className="cmp-history-grid">
-      <div className="cmp-history-card">
-        <div className="cmp-history-head">
-          <h3 className="cmp-history-name">{lf.first_name} {lf.last_name}</h3>
-          {left.form.streak >= 2 && left.form.type && (
-            <span className={cn(
-              "cmp-form-badge",
-              left.form.type === "W" ? "cmp-form-badge--hot" : left.form.type === "L" ? "cmp-form-badge--cold" : "",
-            )}>
-              {left.form.streak}{left.form.type} streak
-            </span>
-          )}
-        </div>
-        <FightList fights={left.lastFights} />
+    <div className="cmp-history-dossier">
+      <div className="cmp-history-insight">
+        <span className="cmp-history-insight-dot" aria-hidden />
+        <p className="cmp-history-insight-text">{insight}</p>
       </div>
-      <div className="cmp-history-card">
-        <div className="cmp-history-head">
-          <h3 className="cmp-history-name">{rf.first_name} {rf.last_name}</h3>
-          {right.form.streak >= 2 && right.form.type && (
-            <span className={cn(
-              "cmp-form-badge",
-              right.form.type === "W" ? "cmp-form-badge--hot" : right.form.type === "L" ? "cmp-form-badge--cold" : "",
-            )}>
-              {right.form.streak}{right.form.type} streak
-            </span>
-          )}
-        </div>
-        <FightList fights={right.lastFights} />
+
+      <RecentFormStrip
+        leftName={lf.first_name}
+        rightName={rf.first_name}
+        leftFights={left.lastFights}
+        rightFights={right.lastFights}
+      />
+
+      <div className="cmp-history-duel-grid">
+        <FighterFightTimeline
+          name={`${lf.first_name} ${lf.last_name}`}
+          fights={left.lastFights}
+          streak={left.form}
+          side="left"
+          hot={lHot}
+          cold={lCold}
+        />
+        <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+        <FighterFightTimeline
+          name={`${rf.first_name} ${rf.last_name}`}
+          fights={right.lastFights}
+          streak={right.form}
+          side="right"
+          hot={rHot}
+          cold={rCold}
+        />
       </div>
     </div>
   );
 }
 
-function FightList({ fights }: { fights: AnyRow[] }) {
-  if (fights.length === 0) {
-    return <p className="text-xs text-muted-foreground py-4 text-center">No fights on record</p>;
+function RecentFormStrip({
+  leftName, rightName, leftFights, rightFights,
+}: {
+  leftName: string;
+  rightName: string;
+  leftFights: AnyRow[];
+  rightFights: AnyRow[];
+}) {
+  const slots = 5;
+  const leftOutcomes = leftFights.slice(0, slots).map((f) => parseFightOutcome(f.result));
+  const rightOutcomes = rightFights.slice(0, slots).map((f) => parseFightOutcome(f.result));
+
+  return (
+    <div className="cmp-history-form">
+      <div className="cmp-history-form-head">
+        <span className="cmp-history-form-title">Recent form</span>
+        <span className="cmp-history-form-hint">Most recent ← left</span>
+      </div>
+      <div className="cmp-history-form-duel">
+        <FormStripSide name={leftName} outcomes={leftOutcomes} slots={slots} />
+        <div className="cmp-history-form-split" aria-hidden />
+        <FormStripSide name={rightName} outcomes={rightOutcomes} slots={slots} side="right" />
+      </div>
+    </div>
+  );
+}
+
+function FormStripSide({
+  name, outcomes, slots, side = "left",
+}: {
+  name: string;
+  outcomes: FightOutcome[];
+  slots: number;
+  side?: "left" | "right";
+}) {
+  const cells = Array.from({ length: slots }, (_, i) => outcomes[i] ?? null);
+  return (
+    <div className={cn(
+      "cmp-history-form-side",
+      side === "right" && "cmp-history-form-side--right",
+    )}>
+      <span className="cmp-history-form-name">{name}</span>
+      <div className="cmp-history-form-track">
+        {cells.map((o, i) => (
+          <FormOutcomeCell key={i} outcome={o} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FormOutcomeCell({ outcome }: { outcome: FightOutcome | null }) {
+  if (!outcome || outcome === "NC") {
+    return (
+      <span className="cmp-history-form-cell cmp-history-form-cell--empty" aria-hidden>
+        <span className="cmp-history-form-cell-char">–</span>
+      </span>
+    );
   }
   return (
-    <div>
-      {fights.map((f: AnyRow) => {
-        const result = f.result?.toLowerCase() ?? "";
-        const isWin = result.startsWith("w");
-        const isLoss = result.startsWith("l");
-        const isDraw = result.startsWith("d");
-        const method = methodLabel(f.method);
+    <span className={cn(
+      "cmp-history-form-cell",
+      outcome === "W" && "cmp-history-form-cell--win",
+      outcome === "L" && "cmp-history-form-cell--loss",
+      outcome === "D" && "cmp-history-form-cell--draw",
+    )}>
+      <span className="cmp-history-form-cell-char">{outcome}</span>
+    </span>
+  );
+}
 
-        return (
-          <div key={f.id} className="cmp-fight-item">
-            <div className={cn(
-              "cmp-fight-result",
-              isWin && "cmp-fight-result--win",
-              isLoss && "cmp-fight-result--loss",
-              isDraw && "cmp-fight-result--draw",
-            )}>
-              {isWin ? "W" : isLoss ? "L" : isDraw ? "D" : "NC"}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="cmp-fight-opp">{f.opponent_name ?? "Unknown opponent"}</p>
-              {(method || f.organization) && (
-                <p className="cmp-fight-meta">{[method, f.organization].filter(Boolean).join(" · ")}</p>
-              )}
-              {f.event_date && (
-                <p className="cmp-fight-date">
-                  {new Date(f.event_date).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}
-                </p>
-              )}
-            </div>
-          </div>
-        );
-      })}
+function FighterFightTimeline({
+  name, fights, streak, side, hot, cold,
+}: {
+  name: string;
+  fights: AnyRow[];
+  streak: { streak: number; type: "W" | "L" | "D" | null };
+  side: "left" | "right";
+  hot: boolean;
+  cold: boolean;
+}) {
+  return (
+    <div className={cn(
+      "cmp-history-timeline",
+      side === "left" ? "cmp-history-timeline--left" : "cmp-history-timeline--right",
+    )}>
+      <div className="cmp-history-timeline-head">
+        <div>
+          <h3 className="cmp-history-timeline-name">{name}</h3>
+          <p className="cmp-history-timeline-sub">Last {fights.length || 0} bout{fights.length === 1 ? "" : "s"} on record</p>
+        </div>
+        {streak.streak >= 2 && streak.type && (
+          <span className={cn(
+            "cmp-form-badge",
+            hot && "cmp-form-badge--hot",
+            cold && "cmp-form-badge--cold",
+          )}>
+            {streak.streak}{streak.type} streak
+          </span>
+        )}
+      </div>
+      {fights.length === 0 ? (
+        <p className="cmp-history-timeline-empty">No fights logged for this sport</p>
+      ) : (
+        <div className="cmp-history-timeline-list">
+          {fights.map((f) => (
+            <FightTimelineRow key={f.id} fight={f} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FightTimelineRow({ fight }: { fight: AnyRow }) {
+  const meta = fightOutcomeMeta(fight.result);
+  const method = methodLabel(fight.method);
+  const opponent = opponentDisplayName(fight);
+  const dateStr = fight.event_date ? formatFightDate(fight.event_date) : null;
+  const hasTitle = Boolean(fight.title_bout?.trim());
+  const hasBonus = Array.isArray(fight.bonuses) && fight.bonuses.some((b: string) => b?.trim());
+
+  return (
+    <div className="cmp-fight-row">
+      <div className={cn("cmp-fight-row-result", `cmp-fight-row-result--${meta.tone}`)}>
+        {meta.label}
+      </div>
+      <div className="cmp-fight-row-body">
+        <p className="cmp-fight-row-line cmp-fight-row-line--opp">vs {opponent}</p>
+        <p className="cmp-fight-row-line cmp-fight-row-line--meta">
+          <span className={cn("cmp-fight-row-method", `cmp-fight-row-method--${meta.tone}`)}>
+            {method ?? "—"}
+          </span>
+          <span className="cmp-fight-row-dot" aria-hidden>·</span>
+          <span>{fight.organization ?? "—"}</span>
+          <span className="cmp-fight-row-dot" aria-hidden>·</span>
+          <span>{dateStr ?? "—"}</span>
+          {(hasTitle || hasBonus) && (
+            <span className="cmp-fight-row-badges">
+              {hasTitle && <span className="cmp-fight-badge cmp-fight-badge--title">Title</span>}
+              {hasBonus && <span className="cmp-fight-badge cmp-fight-badge--bonus">Bonus</span>}
+            </span>
+          )}
+        </p>
+        <p className={cn(
+          "cmp-fight-row-line cmp-fight-row-line--event",
+          !fight.event_name && "cmp-fight-row-line--muted",
+        )}>
+          {fight.event_name ?? "—"}
+        </p>
+      </div>
     </div>
   );
 }
