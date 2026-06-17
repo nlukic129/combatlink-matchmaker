@@ -42,7 +42,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   function toggleCompare(id: string) {
     setCompareIds((prev) => {
       if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= 4) return prev;
+      if (prev.length >= 2) return prev;
       return [...prev, id];
     });
   }
@@ -252,6 +252,8 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
               {compareIds.length > 0 && (
                 <CompareBar
                   ids={compareIds}
+                  sport={filters.sport}
+                  gender={filters.gender}
                   onRemove={(id) => setCompareIds((p) => p.filter((x) => x !== id))}
                 />
               )}

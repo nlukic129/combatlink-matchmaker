@@ -7,10 +7,12 @@ import { Avatar } from "@/components/ui/avatar";
 
 type Props = {
   ids: string[];
+  sport: string | undefined;
+  gender: "male" | "female" | undefined;
   onRemove: (id: string) => void;
 };
 
-export function CompareBar({ ids, onRemove }: Props) {
+export function CompareBar({ ids, sport, gender, onRemove }: Props) {
   const { data: fighters = [] } = useQuery({
     queryKey: ["fighters-compare-bar", ids],
     queryFn: async () => {
@@ -25,7 +27,7 @@ export function CompareBar({ ids, onRemove }: Props) {
   return (
     <div className="fc-compare-bar flex items-center gap-4 border-t border-border glass-panel px-5 py-3 shadow-[var(--shadow-elevated)]">
       <span className="shrink-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Compare ({ids.length}/4)
+        Compare ({ids.length}/2)
       </span>
 
       <div className="flex flex-1 items-center gap-2 overflow-x-auto">
@@ -55,12 +57,8 @@ export function CompareBar({ ids, onRemove }: Props) {
         ))}
       </div>
 
-      <Button
-        asChild
-        size="sm"
-        disabled={ids.length < 2}
-      >
-        <Link to="/compare" search={{ fighters: ids }}>
+      <Button asChild size="sm" disabled={ids.length < 2}>
+        <Link to="/compare" search={{ fighters: ids, sport, gender }}>
           <ArrowLeftRight className="h-4 w-4" />
           Compare
         </Link>

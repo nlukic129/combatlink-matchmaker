@@ -770,7 +770,7 @@ function FightHighlightBadges({ titleBout, titleStatus, bonuses }: {
 // ── Fight stats utilities (inlined) ──────────────────────────────────────────
 
 type FightOutcome = "W" | "L" | "D" | "NC";
-type FinishBucket = "ko" | "sub" | "dec" | "other";
+type FinishBucket = "ko" | "sub" | "dec" | "dq" | "other";
 type FinishBreakdown = Record<FinishBucket, number>;
 
 const OUTCOME_STYLE: Record<FightOutcome, { bg: string; border: string; color: string; label: string }> = {
@@ -781,12 +781,12 @@ const OUTCOME_STYLE: Record<FightOutcome, { bg: string; border: string; color: s
 };
 
 const FINISH_COLORS: Record<FinishBucket, string> = {
-  ko: "#E8001D", sub: "#fb923c", dec: "rgba(255,255,255,0.55)", other: "rgba(255,255,255,0.22)",
+  ko: "#E8001D", sub: "#fb923c", dec: "rgba(255,255,255,0.55)", dq: "#a78bfa", other: "rgba(255,255,255,0.22)",
 };
 const FINISH_LABELS: Record<FinishBucket, string> = {
-  ko: "KO / TKO", sub: "Submission", dec: "Decision", other: "Other",
+  ko: "KO / TKO", sub: "Submission", dec: "Decision", dq: "Disqualification", other: "Other",
 };
-const FINISH_ORDER: FinishBucket[] = ["ko", "sub", "dec", "other"];
+const FINISH_ORDER: FinishBucket[] = ["ko", "sub", "dec", "dq", "other"];
 
 const SPORT_LABELS: Record<string, string> = {
   mma: "MMA", boxing: "Boxing", kickboxing: "Kickboxing",
@@ -819,18 +819,21 @@ function parseFightOutcome(result: any): FightOutcome {
 function bucketMethod(method: string | null): FinishBucket {
   if (!method?.trim()) return "other";
   const s = method.trim().toLowerCase();
-  if (/ko|tko/.test(s)) return "ko";
-  if (/sub/.test(s)) return "sub";
+  if (/ko|tko|knock|stoppage|punches|strikes|corner|doctor|retirement|kick|elbow|pound|injur/.test(s)) return "ko";
+  if (/sub|choke|armbar|triangle|kimura|guillotine|rear.?naked|tap|anaconda|north.?south|d.?arce/.test(s)) return "sub";
   if (/dec/.test(s)) return "dec";
+  if (/\bdq\b|disqualif/.test(s)) return "dq";
   return "other";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildBreakdown(fights: any[], outcome: "W" | "L"): FinishBreakdown {
-  const out: FinishBreakdown = { ko: 0, sub: 0, dec: 0, other: 0 };
+  const out: FinishBreakdown = { ko: 0, sub: 0, dec: 0, dq: 0, other: 0 };
   for (const f of fights) {
     if (parseFightOutcome(f.result) !== outcome) continue;
-    out[bucketMethod(f.method)] += 1;
+    const resultStr = String(f.result ?? "").toLowerCase();
+    const isDq = /\bdq\b|disqualif/.test(resultStr);
+    out[isDq ? "dq" : bucketMethod(f.method)] += 1;
   }
   return out;
 }
@@ -921,7 +924,7 @@ function CareerHighlightsStrip({ titleFights, titlesWon, bonusCount }: { titleFi
 function FinishDonut({ breakdown, title, centerLabel }: {
   breakdown: FinishBreakdown; title: string; centerLabel: string;
 }) {
-  const total = breakdown.ko + breakdown.sub + breakdown.dec + breakdown.other;
+  const total = breakdown.ko + breakdown.sub + breakdown.dec + breakdown.dq + breakdown.other;
   if (total === 0) return null;
 
   const size = 90, r = 32, innerR = 20, cx = 45, cy = 45;
@@ -1020,8 +1023,8 @@ function FightInsights({ fights, sportLabel, levelNote }: {
   const wins     = fights.filter(f => parseFightOutcome(f.result) === "W").length;
   const losses   = fights.filter(f => parseFightOutcome(f.result) === "L").length;
   const winRate  = total > 0 ? Math.round((wins / total) * 100) : 0;
-  const winTotal  = winBreakdown.ko  + winBreakdown.sub  + winBreakdown.dec  + winBreakdown.other;
-  const lossTotal = lossBreakdown.ko + lossBreakdown.sub + lossBreakdown.dec + lossBreakdown.other;
+  const winTotal  = winBreakdown.ko  + winBreakdown.sub  + winBreakdown.dec  + winBreakdown.dq  + winBreakdown.other;
+  const lossTotal = lossBreakdown.ko + lossBreakdown.sub + lossBreakdown.dec + lossBreakdown.dq + lossBreakdown.other;
   const hasHighlights = careerHL.titleFights > 0 || careerHL.bonusCount > 0;
   const hasNote = !!(lastFought || sportLabel || levelNote);
 
