@@ -2,13 +2,15 @@ import { useRef, useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell, Calendar, ChevronDown, Clock, DollarSign, ExternalLink,
-  Globe, Heart, Instagram, Lock, MapPin, Play, Shield,
+  Globe, Heart, Instagram, Lock, MapPin, Shield,
   ShieldCheck, Trophy, User, Video, Zap,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { cn, formatCurrency } from "@/lib/utils";
+import { saveFavourite, removeSavedFavourite, setNotifyWatch } from "@/lib/favourite-mutations";
 import type { Fighter } from "@/types/database";
+import { VideosTab } from "@/components/fighter-drawer/videos-tab";
 
 // ── Types & constants ─────────────────────────────────────────────────────────
 
@@ -23,17 +25,12 @@ const TABS: { id: Tab; label: string; Icon: React.ElementType }[] = [
 ];
 
 const RESULT = {
-  win:  { bg: "rgba(74,222,128,0.12)",  border: "rgba(74,222,128,0.30)",  color: "#4ade80",              label: "W"  },
-  loss: { bg: "rgba(248,113,113,0.12)", border: "rgba(248,113,113,0.30)", color: "#f87171",              label: "L"  },
-  draw: { bg: "rgba(255,255,255,0.07)", border: "rgba(255,255,255,0.16)", color: "rgba(255,255,255,0.55)", label: "D"  },
-  nc:   { bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.30)", label: "NC" },
+  win:  { tone: "win"  as const, label: "W"  },
+  loss: { tone: "loss" as const, label: "L"  },
+  draw: { tone: "draw" as const, label: "D"  },
+  nc:   { tone: "nc"   as const, label: "NC" },
 } as const;
 
-const STATUS_COLOR: Record<string, string> = {
-  available:   "#4ade80",
-  in_camp:     "#fb923c",
-  unavailable: "rgba(255,255,255,0.28)",
-};
 const STATUS_LABEL: Record<string, string> = {
   available:   "Available",
   in_camp:     "In Camp",
@@ -51,16 +48,6 @@ function resultMeta(r: string | null) {
   return RESULT.nc;
 }
 
-function glass(extra?: React.CSSProperties): React.CSSProperties {
-  return {
-    background: "rgba(255,255,255,0.02)",
-    border: "1px solid rgba(255,255,255,0.07)",
-    borderRadius: 14,
-    overflow: "hidden",
-    ...extra,
-  };
-}
-
 function delay(ms: number): React.CSSProperties {
   return { animationDelay: `${ms}ms` };
 }
@@ -71,6 +58,92 @@ function formatDate(iso: string | null): string {
   if (!y || !m) return iso;
   const dt = d ? new Date(y, m - 1, d) : new Date(y, m - 1, 1);
   return dt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function opponentDisplayName(fight: { name?: string | null; opponent_name?: string | null }): string {
+  const name = fight.name ?? fight.opponent_name;
+  if (typeof name === "string" && name.trim()) return name.trim();
+  return "Unknown";
+}
+
+function singleFighterBookingReadiness(fighter: Fighter): {
+  tone: "good" | "warn" | "neutral";
+  message: string;
+} {
+  const status = fighter.availability_status ?? "unavailable";
+  if (status === "available") {
+    return { tone: "good", message: "Fighter is available — good window to open booking talks." };
+  }
+  if (status === "unavailable") {
+    return { tone: "warn", message: "Fighter is unavailable — confirm status before pitching." };
+  }
+  if (status === "in_camp") {
+    return { tone: "neutral", message: "Fighter is in camp — align timelines before committing." };
+  }
+  return { tone: "neutral", message: "Check availability and camp schedule before booking." };
+}
+
+function sportsInsight(
+  sports: { sport: string; is_active?: boolean | null; pro_w: number; pro_l: number; pro_d: number }[],
+  activeSport?: string | null,
+): string {
+  const active = sports.filter(s => s.is_active);
+  const featured = activeSport ? sports.find(s => s.sport === activeSport) : sports[0];
+  if (featured) {
+    const total = featured.pro_w + featured.pro_l + featured.pro_d;
+    const name = sportDisplayLabel(featured.sport);
+    if (total > 0) {
+      const rate = Math.round((featured.pro_w / total) * 100);
+      return `${name} pro record ${featured.pro_w}–${featured.pro_l}–${featured.pro_d} (${rate}% win rate).`;
+    }
+    return `${name} is on file${featured.is_active ? " and open to compete" : ""}.`;
+  }
+  if (active.length > 1) {
+    return `Competes in ${active.length} active disciplines — review records per sport.`;
+  }
+  return "Sport profiles and records — confirm weight classes and fight styles.";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function fightsFormInsight(fights: any[]): string {
+  const recent = fights.slice(0, 8).map(f => parseFightOutcome(f.result));
+  let streak = 0;
+  const first = recent[0];
+  if (first && first !== "NC") {
+    for (const o of recent) {
+      if (o === first) streak++;
+      else break;
+    }
+  }
+  if (streak >= 2 && first === "W") {
+    return `On a ${streak}-fight win streak — momentum is strong.`;
+  }
+  if (streak >= 2 && first === "L") {
+    return `Dropped ${streak} straight — form is a question mark.`;
+  }
+  if (recent.length > 0) {
+    return "Recent form and finish breakdown — scan before making the call.";
+  }
+  return "Fight history on record — filter by sport and level.";
+}
+
+function aboutPhysicalInsight(fighter: Fighter, followerCount: number | null): string {
+  const parts: string[] = [];
+  if (fighter.height_cm) parts.push(`${fighter.height_cm} cm tall`);
+  if (fighter.reach_cm) parts.push(`${fighter.reach_cm} cm reach`);
+  if (fighter.stance) {
+    parts.push(`${fighter.stance.replace(/_/g, " ")} stance`);
+  }
+  if (parts.length > 0) {
+    return parts.join(" · ") + (followerCount != null ? ` — ${followerCount.toLocaleString()} Instagram followers tracked.` : ".");
+  }
+  if (followerCount != null) {
+    return `${followerCount.toLocaleString()} Instagram followers tracked — social reach shapes promotability.`;
+  }
+  if (fighter.instagram) {
+    return "Physical profile and social presence — size and reach shape how this fighter fights.";
+  }
+  return "Physical profile, travel eligibility, and team affiliation.";
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -97,47 +170,49 @@ export function FighterDrawerContent({ fighter, activeSport }: Props) {
     },
   });
 
-  const { data: isFavourite } = useQuery({
-    queryKey: ["favourite", fighter.id],
+  const { data: favourite } = useQuery({
+    queryKey: ["favourite-detail", fighter.id],
     enabled: !!matchmaker,
     queryFn: async () => {
       const { data } = await supabase
-        .from("matchmaker_favourites").select("id").eq("fighter_id", fighter.id).maybeSingle();
-      return !!data;
-    },
-  });
-
-  const { data: favourite } = useQuery({
-    queryKey: ["favourite-detail", fighter.id],
-    enabled: !!matchmaker && isFavourite === true,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("matchmaker_favourites").select("id, note, notify").eq("fighter_id", fighter.id).maybeSingle();
+        .from("matchmaker_favourites").select("id, note, notify, is_saved").eq("fighter_id", fighter.id).maybeSingle();
       return data;
     },
   });
 
+  const isFavourite = favourite?.is_saved === true;
+  const isNotify = favourite?.notify === true;
+
   const toggleFavourite = useMutation({
     mutationFn: async () => {
       if (isFavourite) {
-        await supabase.from("matchmaker_favourites").delete().eq("fighter_id", fighter.id);
+        await removeSavedFavourite(supabase, fighter.id);
       } else {
-        await supabase.from("matchmaker_favourites").insert({ matchmaker_id: matchmaker!.id, fighter_id: fighter.id });
+        await saveFavourite(supabase, matchmaker!.id, fighter.id);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["favourite", fighter.id] });
       qc.invalidateQueries({ queryKey: ["favourite-detail", fighter.id] });
       qc.invalidateQueries({ queryKey: ["favourites"] });
+      qc.invalidateQueries({ queryKey: ["favourite-fighter-ids"] });
     },
   });
 
   const toggleNotify = useMutation({
     mutationFn: async () => {
-      if (!favourite) return;
-      await supabase.from("matchmaker_favourites").update({ notify: !favourite.notify }).eq("id", favourite.id);
+      await setNotifyWatch(
+        supabase,
+        matchmaker!.id,
+        fighter.id,
+        !isNotify,
+        isFavourite,
+      );
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["favourite-detail", fighter.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["favourite-detail", fighter.id] });
+      qc.invalidateQueries({ queryKey: ["favourite", fighter.id] });
+    },
   });
 
   function switchTab(id: Tab) {
@@ -153,23 +228,28 @@ export function FighterDrawerContent({ fighter, activeSport }: Props) {
         fighter={fighter}
         record={record ?? null}
         isFavourite={isFavourite}
-        favourite={favourite ?? null}
+        isNotify={isNotify}
         onToggleFav={() => toggleFavourite.mutate()}
         onToggleNotify={() => toggleNotify.mutate()}
       />
 
       {/* Tab bar */}
       <div className="fd-tabs">
-        {TABS.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            onClick={() => switchTab(id)}
-            className={cn("fd-tab", tab === id && "fd-tab--active")}
-          >
-            <Icon size={13} />
-            {label}
-          </button>
-        ))}
+        <nav className="fd-section-nav" aria-label="Fighter sections" role="tablist">
+          {TABS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={tab === id}
+              onClick={() => switchTab(id)}
+              className={cn("cmp-section-tab", tab === id && "cmp-section-tab--active")}
+            >
+              <Icon size={13} />
+              {label}
+            </button>
+          ))}
+        </nav>
       </div>
 
       {/* Sliding tab panel */}
@@ -193,130 +273,104 @@ export function FighterDrawerContent({ fighter, activeSport }: Props) {
 
 // ── Hero ──────────────────────────────────────────────────────────────────────
 
-function HeroSection({ fighter, record, isFavourite, favourite, onToggleFav, onToggleNotify }: {
+function HeroSection({ fighter, record, isFavourite, isNotify, onToggleFav, onToggleNotify }: {
   fighter: Fighter;
   record: { w: number; l: number; d: number } | null;
   isFavourite?: boolean;
-  favourite: { notify: boolean } | null;
+  isNotify: boolean;
   onToggleFav: () => void;
   onToggleNotify: () => void;
 }) {
   const status = fighter.availability_status ?? "unavailable";
-  const dotColor = STATUS_COLOR[status] ?? "rgba(255,255,255,0.28)";
   const fullName = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
   const initials = [fighter.first_name?.[0], fighter.last_name?.[0]].filter(Boolean).join("").toUpperCase();
-  const photoBorder = status === "available" ? "rgba(74,222,128,0.35)" : status === "in_camp" ? "rgba(251,146,60,0.35)" : "rgba(255,255,255,0.08)";
 
   const hasPills = fighter.purse_usd != null || fighter.open_to_short_notice ||
     fighter.preparation_weeks != null || !!fighter.promotional_status;
 
   return (
-    <div className="fd-up" style={{ padding: "14px 20px 12px", borderBottom: "1px solid rgba(255,255,255,0.06)", ...delay(0) }}>
-      <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-        {/* Portrait photo — compact */}
-        <div style={{ flexShrink: 0, width: 72, height: 90, borderRadius: 10, overflow: "hidden", background: "oklch(0.10 0.012 270)", border: `1.5px solid ${photoBorder}` }}>
-          {fighter.photo_url ? (
-            <img src={fighter.photo_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top", display: "block" }} />
-          ) : (
-            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(165deg, oklch(0.16 0.016 278) 0%, oklch(0.11 0.013 268) 100%)" }}>
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: "rgba(255,255,255,0.18)" }}>{initials || "?"}</span>
-            </div>
+    <div className="fd-hero fd-up" style={delay(0)}>
+      <div className={cn("fd-hero-photo", `fd-hero-photo--${status}`)}>
+        {fighter.photo_url ? (
+          <img src={fighter.photo_url} alt="" />
+        ) : (
+          <div className="fd-hero-photo-placeholder">{initials || "?"}</div>
+        )}
+      </div>
+
+      <div className="fd-hero-body">
+        <div className="fd-hero-name-row">
+          <h2 className="fd-hero-name">{fullName}</h2>
+          {record && (
+            <span className="fd-hero-record">{record.w}–{record.l}–{record.d}</span>
+          )}
+          <div className="fd-hero-actions">
+            <button
+              type="button"
+              className={cn("fd-action-btn", isNotify && "fd-action-btn--active")}
+              onClick={onToggleNotify}
+              title={isNotify ? "Stop notifications" : "Notify when available"}
+            >
+              <Bell size={14} />
+            </button>
+            <button
+              type="button"
+              className={cn("fd-action-btn", isFavourite && "fd-action-btn--fav")}
+              onClick={onToggleFav}
+              title={isFavourite ? "Remove from favourites" : "Add to favourites"}
+            >
+              <Heart size={14} fill={isFavourite ? "currentColor" : "none"} strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+
+        <div className="fd-hero-meta">
+          <span className={cn("fd-hero-status", `fd-hero-status--${status}`)}>
+            <span className="fd-hero-status-dot" />
+            {STATUS_LABEL[status] ?? "Unknown"}
+          </span>
+          {fighter.country && (
+            <span className="fd-hero-meta-item"><MapPin size={10} />{fighter.country}</span>
+          )}
+          {fighter.team_name && (
+            <span className="fd-hero-meta-item"><Shield size={10} />{fighter.team_name}</span>
+          )}
+          {fighter.nickname && (
+            <span className="fd-hero-nickname">&ldquo;{fighter.nickname}&rdquo;</span>
+          )}
+          {fighter.identity_verified && (
+            <span className="fd-hero-verified"><ShieldCheck size={9} />Identity Verified</span>
           )}
         </div>
 
-        {/* All meta — compact column */}
-        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-
-          {/* Row 1: Name + record + actions */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, fontWeight: 400, letterSpacing: "0.03em", lineHeight: 1, color: "#fff", flexShrink: 0 }}>
-              {fullName}
-            </h2>
-            {record && (
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, letterSpacing: "0.04em", color: "rgba(255,255,255,0.55)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 5, padding: "2px 8px", flexShrink: 0 }}>
-                {record.w}–{record.l}–{record.d}
-              </span>
+        {hasPills && (
+          <div className="fd-hero-pills">
+            {fighter.purse_usd != null && (
+              <span className="fd-pill"><DollarSign size={10} />{formatCurrency(fighter.purse_usd)}</span>
             )}
-            <div style={{ marginLeft: "auto", display: "flex", gap: 4, flexShrink: 0 }}>
-              {isFavourite && (
-                <ActionBtn onClick={onToggleNotify} title={favourite?.notify ? "Stop notifications" : "Notify when available"} active={!!favourite?.notify}>
-                  <Bell size={14} />
-                </ActionBtn>
-              )}
-              <ActionBtn onClick={onToggleFav} title={isFavourite ? "Remove from favourites" : "Add to favourites"} active={!!isFavourite} activeColor="#E8001D">
-                <Heart size={14} fill={isFavourite ? "currentColor" : "none"} strokeWidth={1.5} />
-              </ActionBtn>
-            </div>
-          </div>
-
-          {/* Row 2: status · country · team · verified · nickname */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "3px 10px", alignItems: "center" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600 }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: dotColor, boxShadow: status === "available" ? `0 0 7px ${dotColor}` : "none", flexShrink: 0 }} />
-              <span style={{ color: dotColor }}>{STATUS_LABEL[status] ?? "Unknown"}</span>
-            </span>
-            {fighter.country && (
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.36)", display: "inline-flex", alignItems: "center", gap: 3 }}>
-                <MapPin size={10} />{fighter.country}
-              </span>
+            {fighter.preparation_weeks != null && (
+              <span className="fd-pill"><Clock size={10} />{fighter.preparation_weeks}w prep</span>
             )}
-            {fighter.team_name && (
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.36)", display: "inline-flex", alignItems: "center", gap: 3 }}>
-                <Shield size={10} />{fighter.team_name}
-              </span>
+            {fighter.open_to_short_notice && (
+              <span className="fd-pill fd-pill--green"><Zap size={10} />Short notice OK</span>
             )}
-            {fighter.nickname && (
-              <span style={{ fontSize: 11, fontStyle: "italic", color: "rgba(255,255,255,0.30)" }}>
-                &ldquo;{fighter.nickname}&rdquo;
-              </span>
+            {fighter.promotional_status === "open" && (
+              <span className="fd-pill"><Globe size={10} />Free agent</span>
             )}
-            {fighter.identity_verified && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "rgba(74,222,128,0.10)", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 4, padding: "1px 6px", fontSize: 9.5, fontWeight: 700, color: "#4ade80", letterSpacing: "0.04em" }}>
-                <ShieldCheck size={9} />Identity Verified
-              </span>
+            {fighter.promotional_status === "exclusive" && (
+              <span className="fd-pill fd-pill--amber"><Lock size={10} />Exclusive</span>
             )}
           </div>
-
-          {/* Row 3: quick pills */}
-          {hasPills && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 2 }}>
-              {fighter.purse_usd != null && <QuickPill icon={<DollarSign size={10} />} label={formatCurrency(fighter.purse_usd)} />}
-              {fighter.preparation_weeks != null && <QuickPill icon={<Clock size={10} />} label={`${fighter.preparation_weeks}w prep`} />}
-              {fighter.open_to_short_notice && <QuickPill icon={<Zap size={10} />} label="Short notice OK" variant="green" />}
-              {fighter.promotional_status === "open" && <QuickPill icon={<Globe size={10} />} label="Free agent" />}
-              {fighter.promotional_status === "exclusive" && <QuickPill icon={<Lock size={10} />} label="Exclusive" variant="amber" />}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
-  );
-}
-
-function ActionBtn({ onClick, title, active, activeColor = "#4ade80", children }: {
-  onClick: () => void; title: string; active: boolean; activeColor?: string; children: React.ReactNode;
-}) {
-  return (
-    <button onClick={onClick} title={title} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 32, height: 32, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.05)", cursor: "pointer", color: active ? activeColor : "rgba(255,255,255,0.32)", transition: "color 0.12s" }}>
-      {children}
-    </button>
-  );
-}
-
-function QuickPill({ icon, label, variant }: { icon: React.ReactNode; label: string; variant?: "green" | "amber" }) {
-  const color    = variant === "green" ? "#4ade80" : variant === "amber" ? "#fb923c" : "rgba(255,255,255,0.48)";
-  const bg       = variant === "green" ? "rgba(74,222,128,0.08)" : variant === "amber" ? "rgba(251,146,60,0.08)" : "rgba(255,255,255,0.04)";
-  const border   = variant === "green" ? "rgba(74,222,128,0.20)" : variant === "amber" ? "rgba(251,146,60,0.20)" : "rgba(255,255,255,0.08)";
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color, background: bg, border: `1px solid ${border}`, borderRadius: 6, padding: "3px 8px" }}>
-      {icon}{label}
-    </span>
   );
 }
 
 // ── Booking tab ───────────────────────────────────────────────────────────────
 
 function BookingTab({ fighter }: { fighter: Fighter }) {
+  const readiness = singleFighterBookingReadiness(fighter);
   const prepLabel = fighter.preparation_weeks != null
     ? fighter.preparation_weeks === 0 ? "Always ready" : `${fighter.preparation_weeks} weeks`
     : null;
@@ -326,32 +380,39 @@ function BookingTab({ fighter }: { fighter: Fighter }) {
     : fighter.availability_status === "available" ? "Now" : "—";
 
   return (
-    <div className="fd-booking-grid">
-      {fighter.purse_usd != null && (
-        <BookingCard icon={<DollarSign size={18} />} label="Fight Purse" value={formatCurrency(fighter.purse_usd)} detail={fighter.purse_negotiable ? "Negotiable" : "Fixed ask"} delayMs={0} />
-      )}
-      <BookingCard icon={<Calendar size={18} />} label="Available From" value={availValue} delayMs={40} />
-      {prepLabel && (
-        <BookingCard icon={<Clock size={18} />} label="Preparation" value={prepLabel} delayMs={80} />
-      )}
-      <BookingCard
-        icon={<Zap size={18} />}
-        label="Short Notice"
-        value={fighter.open_to_short_notice ? "Available" : "No"}
-        detail={fighter.open_to_short_notice ? "Can take fights on short turnaround" : "Prefers regular lead time"}
-        highlight={fighter.open_to_short_notice}
-        delayMs={120}
-      />
-      <BookingCard
-        icon={fighter.promotional_status === "exclusive" ? <Lock size={18} /> : <Globe size={18} />}
-        label="Promotion"
-        value={fighter.promotional_status === "exclusive" ? "Exclusive" : "Free agent"}
-        detail={fighter.promotional_status === "exclusive" && fighter.promoter_name ? fighter.promoter_name : undefined}
-        delayMs={160}
-      />
-      {fighter.current_city && (
-        <BookingCard icon={<MapPin size={18} />} label="Current Location" value={[fighter.current_city, fighter.current_city_country].filter(Boolean).join(", ")} delayMs={200} />
-      )}
+    <div className="fd-dossier">
+      <div className={cn("cmp-booking-readiness", `cmp-booking-readiness--${readiness.tone}`)}>
+        <span className="cmp-booking-readiness-dot" aria-hidden />
+        <p className="cmp-booking-readiness-text">{readiness.message}</p>
+      </div>
+
+      <div className="fd-booking-grid">
+        {fighter.purse_usd != null && (
+          <BookingCard icon={<DollarSign size={18} />} label="Fight Purse" value={formatCurrency(fighter.purse_usd)} detail={fighter.purse_negotiable ? "Negotiable" : "Fixed ask"} delayMs={0} />
+        )}
+        <BookingCard icon={<Calendar size={18} />} label="Available From" value={availValue} delayMs={40} />
+        {prepLabel && (
+          <BookingCard icon={<Clock size={18} />} label="Preparation" value={prepLabel} delayMs={80} />
+        )}
+        <BookingCard
+          icon={<Zap size={18} />}
+          label="Short Notice"
+          value={fighter.open_to_short_notice ? "Available" : "No"}
+          detail={fighter.open_to_short_notice ? "Can take fights on short turnaround" : "Prefers regular lead time"}
+          highlight={fighter.open_to_short_notice}
+          delayMs={120}
+        />
+        <BookingCard
+          icon={fighter.promotional_status === "exclusive" ? <Lock size={18} /> : <Globe size={18} />}
+          label="Promotion"
+          value={fighter.promotional_status === "exclusive" ? "Exclusive" : "Free agent"}
+          detail={fighter.promotional_status === "exclusive" && fighter.promoter_name ? fighter.promoter_name : undefined}
+          delayMs={160}
+        />
+        {fighter.current_city && (
+          <BookingCard icon={<MapPin size={18} />} label="Current Location" value={[fighter.current_city, fighter.current_city_country].filter(Boolean).join(", ")} delayMs={200} />
+        )}
+      </div>
     </div>
   );
 }
@@ -359,18 +420,13 @@ function BookingTab({ fighter }: { fighter: Fighter }) {
 function BookingCard({ icon, label, value, detail, highlight, delayMs }: {
   icon: React.ReactNode; label: string; value: string; detail?: string; highlight?: boolean; delayMs: number;
 }) {
-  const accentColor = highlight ? "#4ade80" : "rgba(255,255,255,0.60)";
   return (
-    <div className="fd-up" style={{ ...glass({ padding: "14px 14px" }), ...delay(delayMs) }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ width: 34, height: 34, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.05)", color: highlight ? "#4ade80" : "rgba(255,255,255,0.40)", flexShrink: 0 }}>
-          {icon}
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", marginBottom: 4 }}>{label}</p>
-          <p style={{ fontSize: 14, fontWeight: 600, color: accentColor, lineHeight: 1.3 }}>{value}</p>
-          {detail && <p style={{ marginTop: 4, fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{detail}</p>}
-        </div>
+    <div className={cn("fd-stat-card fd-up", highlight && "fd-stat-card--highlight")} style={delay(delayMs)}>
+      <div className="fd-stat-card-icon">{icon}</div>
+      <div className="min-w-0">
+        <p className="fd-stat-card-label">{label}</p>
+        <p className="fd-stat-card-value">{value}</p>
+        {detail && <p className="fd-stat-card-detail">{detail}</p>}
       </div>
     </div>
   );
@@ -399,54 +455,54 @@ function SportsTab({ fighterId, activeSport }: { fighterId: string; activeSport?
   const rest = activeSport ? sports.filter(s => s.sport !== activeSport) : sports;
 
   return (
-    <>
+    <div className="fd-dossier">
+      <div className="cmp-history-insight">
+        <span className="cmp-history-insight-dot" aria-hidden />
+        <p className="cmp-history-insight-text">{sportsInsight(sports, activeSport)}</p>
+      </div>
+
       {featured && <SportCardFeatured sport={featured} delayMs={0} />}
 
       {featured && rest.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", whiteSpace: "nowrap" }}>
-            Also competes in
-          </span>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }} />
+        <div className="fd-section-split">
+          <div className="fd-section-split-line" />
+          <span className="fd-section-split-label">Also competes in</span>
+          <div className="fd-section-split-line" />
         </div>
       )}
 
       {rest.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div className="grid grid-cols-2 gap-2.5">
           {rest.map((s, i) => (
             <SportCardMini key={s.id} sport={s} delayMs={(featured ? 1 : i) * 60 + 60} />
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function RecordBlocks({ levels, size = "normal" }: { levels: { key: string; label: string; w: number; l: number; d: number }[]; size?: "normal" | "hero" }) {
-  const numSize = size === "hero" ? 36 : 28;
-  const blockPad = size === "hero" ? "12px 6px" : "9px 6px";
   return (
     <>
       {levels.map(lvl => (
         <div key={lvl.key}>
           {levels.length > 1 && (
-            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", marginBottom: 7 }}>{lvl.label}</p>
+            <p className="fd-record-level-label">{lvl.label}</p>
           )}
-          <div style={{ display: "flex", gap: 6 }}>
-            <div style={{ flex: 1, padding: blockPad, borderRadius: 10, textAlign: "center" as const, background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.18)" }}>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: numSize, lineHeight: 1, color: "#4ade80" }}>{lvl.w}</p>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "rgba(74,222,128,0.55)", marginTop: 4 }}>W</p>
+          <div className={cn("fd-record-grid", size === "hero" && "fd-record-grid--hero")}>
+            <div className="fd-record-cell fd-record-cell--w">
+              <p className="fd-record-cell-num">{lvl.w}</p>
+              <p className="fd-record-cell-lbl">W</p>
             </div>
-            <div style={{ flex: 1, padding: blockPad, borderRadius: 10, textAlign: "center" as const, background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.18)" }}>
-              <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: numSize, lineHeight: 1, color: "#f87171" }}>{lvl.l}</p>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "rgba(248,113,113,0.55)", marginTop: 4 }}>L</p>
+            <div className="fd-record-cell fd-record-cell--l">
+              <p className="fd-record-cell-num">{lvl.l}</p>
+              <p className="fd-record-cell-lbl">L</p>
             </div>
             {lvl.d > 0 && (
-              <div style={{ flex: 1, padding: blockPad, borderRadius: 10, textAlign: "center" as const, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)" }}>
-                <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: numSize, lineHeight: 1, color: "rgba(255,255,255,0.50)" }}>{lvl.d}</p>
-                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "rgba(255,255,255,0.28)", marginTop: 4 }}>D</p>
+              <div className="fd-record-cell fd-record-cell--d">
+                <p className="fd-record-cell-num">{lvl.d}</p>
+                <p className="fd-record-cell-lbl">D</p>
               </div>
             )}
           </div>
@@ -469,43 +525,37 @@ function SportCardFeatured({ sport, delayMs }: { sport: any; delayMs: number }) 
   const fightStyles   = (sport.fighter_sport_fight_styles   ?? []).map((r: any) => r.fight_styles  ).filter(Boolean);
 
   return (
-    <div className="fd-up" style={{ borderRadius: 16, overflow: "hidden", border: "1px solid rgba(232,0,29,0.28)", boxShadow: "0 0 28px rgba(232,0,29,0.08)", ...delay(delayMs) }}>
-      {/* Hero header with gradient */}
-      <div style={{ background: "linear-gradient(135deg, rgba(232,0,29,0.14) 0%, rgba(232,0,29,0.04) 60%, rgba(255,255,255,0.02) 100%)", padding: "18px 20px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, letterSpacing: "0.04em", color: "#fff", lineHeight: 1 }}>{name}</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-              {sport.level && (
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.45)" }}>
-                  {sport.level === "pro" ? "Professional" : "Amateur"}
-                </span>
-              )}
-            </div>
-          </div>
-          {sport.is_active ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 700, color: "#4ade80", background: "rgba(74,222,128,0.10)", border: "1px solid rgba(74,222,128,0.22)", borderRadius: 999, padding: "4px 11px", flexShrink: 0 }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 7px #4ade80", flexShrink: 0 }} />
-              Open to compete
+    <div className="fd-sport-featured fd-up" style={delay(delayMs)}>
+      <div className="fd-sport-featured-head">
+        <div>
+          <p className="fd-sport-featured-name">{name}</p>
+          {sport.level && (
+            <span className="fd-sport-featured-level">
+              {sport.level === "pro" ? "Professional" : "Amateur"}
             </span>
-          ) : (
-            <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.28)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 999, padding: "4px 11px", flexShrink: 0 }}>Historical</span>
           )}
         </div>
+        {sport.is_active ? (
+          <span className="fd-sport-featured-badge fd-sport-featured-badge--active">
+            <span className="fd-sport-featured-badge--active-dot" />
+            Open to compete
+          </span>
+        ) : (
+          <span className="fd-sport-featured-badge fd-sport-featured-badge--historical">Historical</span>
+        )}
       </div>
 
-      {/* Body */}
-      <div style={{ padding: "16px 20px 18px", background: "rgba(255,255,255,0.015)", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="fd-sport-featured-body">
         <RecordBlocks levels={levels} size="hero" />
 
         {weightClasses.length > 0 && (
           <div>
-            <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", marginBottom: 8 }}>Weight classes</p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <p className="fd-eyebrow">Weight classes</p>
+            <div className="flex flex-wrap gap-1.5">
               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
               {weightClasses.map((wc: any) => (
-                <span key={wc.id} style={{ fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.65)", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 7, padding: "4px 10px" }}>
-                  {wc.name}<span style={{ color: "rgba(255,255,255,0.25)", margin: "0 5px" }}>·</span><span style={{ color: "rgba(255,255,255,0.38)" }}>{wc.limit_kg} kg</span>
+                <span key={wc.id} className="cmp-tag">
+                  {wc.name} · {wc.limit_kg} kg
                 </span>
               ))}
             </div>
@@ -513,12 +563,10 @@ function SportCardFeatured({ sport, delayMs }: { sport: any; delayMs: number }) 
         )}
 
         {fightStyles.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div className="flex flex-wrap gap-1.5">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             {fightStyles.map((fs: any) => (
-              <span key={fs.id} style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.09em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.50)", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 5, padding: "4px 9px" }}>
-                {fs.label}
-              </span>
+              <span key={fs.id} className="cmp-tag">{fs.label}</span>
             ))}
           </div>
         )}
@@ -536,26 +584,18 @@ function SportCardMini({ sport, delayMs }: { sport: any; delayMs: number }) {
   ].filter(lvl => lvl.w + lvl.l + lvl.d > 0);
 
   return (
-    <div className="fd-up" style={{ ...glass({ padding: 0 }), ...delay(delayMs), overflow: "hidden", opacity: 0.6 }}>
-      <div style={{ padding: "12px 14px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 17, letterSpacing: "0.04em", color: "rgba(255,255,255,0.75)", lineHeight: 1 }}>{name}</span>
+    <div className="fd-sport-mini fd-up" style={delay(delayMs)}>
+      <div className="fd-sport-mini-inner">
+        <div className="fd-sport-mini-head">
+          <p className="fd-sport-mini-name">{name}</p>
           {sport.level && (
-            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.30)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 4, padding: "2px 6px" }}>
-              {sport.level}
-            </span>
+            <span className="fd-sport-mini-level">{sport.level}</span>
           )}
         </div>
         <RecordBlocks levels={levels} size="normal" />
       </div>
     </div>
   );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function SportCard({ sport, delayMs, dimmed }: { sport: any; delayMs: number; dimmed?: boolean }) {
-  if (dimmed) return <SportCardMini sport={sport} delayMs={delayMs} />;
-  return <SportCardFeatured sport={sport} delayMs={delayMs} />;
 }
 
 // ── Fights tab ────────────────────────────────────────────────────────────────
@@ -603,7 +643,12 @@ function FightsTab({ fighterId, activeSport }: { fighterId: string; activeSport?
   if (!fights.length) return <TabEmpty label="No fight history on record" />;
 
   return (
-    <div className="fd-fights-layout">
+    <div className="fd-dossier fd-fights-layout">
+      <div className="cmp-history-insight">
+        <span className="cmp-history-insight-dot" aria-hidden />
+        <p className="cmp-history-insight-text">{fightsFormInsight(fights)}</p>
+      </div>
+
       {showToolbar && (
         <div className="fd-fights-filter-bar">
           {showSportFilters && (
@@ -632,9 +677,9 @@ function FightsTab({ fighterId, activeSport }: { fighterId: string; activeSport?
         </div>
 
         <div className="fd-fights-history-col">
-          <div className="fd-fight-list fd-up" style={delay(60)}>
+          <div className="cmp-compare-card fd-fight-list fd-up" style={delay(60)}>
             {filtered.length === 0 ? (
-              <div style={{ padding: "24px 16px", textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.28)" }}>
+              <div className="fd-fight-empty-filter">
                 No fights match current filters
               </div>
             ) : (
@@ -642,7 +687,7 @@ function FightsTab({ fighterId, activeSport }: { fighterId: string; activeSport?
                 <FightRow key={f.id} fight={f} isLast={i === filtered.length - 1} />
               ))
             )}
-            <div style={{ height: 28 }} aria-hidden />
+            <div className="h-7" aria-hidden />
           </div>
         </div>
       </div>
@@ -661,23 +706,7 @@ function FightsFilterGroup({ label, children }: { label: string; children: React
 
 function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        flexShrink: 0,
-        borderRadius: 999,
-        padding: "5px 12px",
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: "0.03em",
-        border: active ? "1px solid rgba(232,0,29,0.45)" : "1px solid rgba(255,255,255,0.10)",
-        background: active ? "rgba(232,0,29,0.12)" : "rgba(255,255,255,0.04)",
-        color: active ? "#E8001D" : "rgba(255,255,255,0.50)",
-        cursor: "pointer",
-        transition: "color 0.12s, background 0.12s, border-color 0.12s",
-      }}
-    >
+    <button type="button" onClick={onClick} className={cn("fd-chip", active && "fd-chip--active")}>
       {label}
     </button>
   );
@@ -750,17 +779,18 @@ function FightHighlightBadges({ titleBout, titleStatus, bonuses }: {
   const hl = getHighlights(titleBout, titleStatus, bonuses);
   if (hl.length === 0) return null;
   return (
-    <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+    <div className="fd-highlight-badges">
       {hl.map((h, i) => {
         const s = HIGHLIGHT_STYLES[h.kind];
         return (
-          <span key={i} title={h.title} style={{
-            display: "inline-flex", alignItems: "center",
-            padding: "2px 6px", borderRadius: 4,
-            fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
-            textTransform: "uppercase" as const,
-            color: s.color, background: s.bg, border: `1px solid ${s.border}`, lineHeight: 1.3,
-          }}>{h.label}</span>
+          <span
+            key={i}
+            title={h.title}
+            className="fd-highlight-badge"
+            style={{ color: s.color, background: s.bg, border: `1px solid ${s.border}` }}
+          >
+            {h.label}
+          </span>
         );
       })}
     </div>
@@ -773,11 +803,11 @@ type FightOutcome = "W" | "L" | "D" | "NC";
 type FinishBucket = "ko" | "sub" | "dec" | "dq" | "other";
 type FinishBreakdown = Record<FinishBucket, number>;
 
-const OUTCOME_STYLE: Record<FightOutcome, { bg: string; border: string; color: string; label: string }> = {
-  W:  { bg: "rgba(74,222,128,0.14)",  border: "rgba(74,222,128,0.35)",  color: "#4ade80",               label: "W" },
-  L:  { bg: "rgba(248,113,113,0.14)", border: "rgba(248,113,113,0.35)", color: "#f87171",               label: "L" },
-  D:  { bg: "rgba(255,255,255,0.08)", border: "rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.55)", label: "D" },
-  NC: { bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.35)", label: "–" },
+const OUTCOME_STYLE: Record<FightOutcome, { label: string }> = {
+  W:  { label: "W" },
+  L:  { label: "L" },
+  D:  { label: "D" },
+  NC: { label: "–" },
 };
 
 const FINISH_COLORS: Record<FinishBucket, string> = {
@@ -888,13 +918,12 @@ function HighlightTile({ value, label, accent, tint, delayMs = 0 }: {
   value: number; label: string; accent: string; tint: string; delayMs?: number;
 }) {
   return (
-    <div className="fd-scale-in" style={{
-      animationDelay: `${delayMs}ms`,
-      flex: 1, minWidth: 80, padding: "10px 12px", borderRadius: 10,
-      textAlign: "center" as const, background: tint, border: `1px solid ${accent}33`,
-    }}>
-      <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: "0.03em", lineHeight: 1, color: accent }}>{value}</p>
-      <p style={{ marginTop: 5, fontSize: 9, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.48)" }}>{label}</p>
+    <div
+      className="fd-highlight-tile fd-scale-in"
+      style={{ animationDelay: `${delayMs}ms`, background: tint, border: `1px solid ${accent}33` }}
+    >
+      <p className="fd-highlight-tile-val" style={{ color: accent }}>{value}</p>
+      <p className="fd-highlight-tile-lbl">{label}</p>
     </div>
   );
 }
@@ -911,8 +940,8 @@ function CareerHighlightsStrip({ titleFights, titlesWon, bonusCount }: { titleFi
   if (tiles.length === 0) return null;
   return (
     <div>
-      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.32)", marginBottom: 10 }}>Career highlights</p>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <p className="fd-eyebrow">Career highlights</p>
+      <div className="flex flex-wrap gap-2">
         {tiles.map((t, i) => <HighlightTile key={t.label} {...t} delayMs={i * 70} />)}
       </div>
     </div>
@@ -1029,69 +1058,66 @@ function FightInsights({ fights, sportLabel, levelNote }: {
   const hasNote = !!(lastFought || sportLabel || levelNote);
 
   return (
-    <div className="fd-up" style={{ ...glass({ padding: "16px 18px" }), ...delay(0) }}>
-      {/* Header: last fought · sport · level + total count */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 16 }}>
+    <div className="cmp-compare-card fd-insights-panel fd-up" style={delay(0)}>
+      <div className="fd-insights-header">
         {hasNote ? (
-          <p style={{ fontSize: 11, fontWeight: 600, color: "rgba(255,255,255,0.60)", lineHeight: 1.4 }}>
+          <p className="fd-insights-note">
             {lastFought}
-            {lastFought && (sportLabel || levelNote) && <span style={{ color: "rgba(255,255,255,0.30)" }}> · </span>}
-            {sportLabel && <span style={{ color: "rgba(255,255,255,0.35)" }}>{sportLabel}</span>}
-            {sportLabel && levelNote && <span style={{ color: "rgba(255,255,255,0.30)" }}> · </span>}
-            {levelNote && <span style={{ color: "rgba(255,255,255,0.35)" }}>{levelNote} only</span>}
+            {lastFought && (sportLabel || levelNote) && <span className="text-white/30"> · </span>}
+            {sportLabel && <span className="text-white/35">{sportLabel}</span>}
+            {sportLabel && levelNote && <span className="text-white/30"> · </span>}
+            {levelNote && <span className="text-white/35">{levelNote} only</span>}
           </p>
         ) : <span />}
-        <span style={{ fontSize: 10, color: "rgba(255,255,255,0.30)", flexShrink: 0 }}>{total} fights</span>
+        <span className="fd-insights-count">{total} fights</span>
       </div>
 
-      {/* Recent form squares */}
       {form.length > 0 && (
-        <div style={{ marginBottom: 18 }}>
+        <div className="fd-insights-section">
           <p className="fd-eyebrow">Recent form</p>
-          <div style={{ display: "flex", gap: 6 }}>
-            {form.map((o, i) => {
-              const s = OUTCOME_STYLE[o];
-              return (
-                <div key={i} className="fd-scale-in" style={{
-                  animationDelay: `${i * 40}ms`, flex: 1, minWidth: 0, aspectRatio: "1", maxWidth: 36,
-                  borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center",
-                  background: s.bg, border: `1px solid ${s.border}`,
-                  fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: s.color,
-                }}>{s.label}</div>
-              );
-            })}
+          <div className="flex gap-1.5">
+            {form.map((o, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "fd-form-square fd-scale-in",
+                  o === "W" ? "fd-form-square--w" : o === "L" ? "fd-form-square--l" : o === "D" ? "fd-form-square--d" : "fd-form-square--nc",
+                )}
+                style={delay(i * 40)}
+              >
+                {OUTCOME_STYLE[o].label}
+              </div>
+            ))}
           </div>
-          <p style={{ marginTop: 5, fontSize: 10, color: "rgba(255,255,255,0.25)" }}>Most recent ← left</p>
+          <p className="fd-insights-form-hint">Most recent ← left</p>
         </div>
       )}
 
-      {/* Career highlights: title fights, belts, bonuses */}
       {hasHighlights && (
-        <div style={{ marginBottom: 18 }}>
+        <div className="fd-insights-section">
           <CareerHighlightsStrip {...careerHL} />
         </div>
       )}
 
-      {/* Win rate */}
-      <div style={{ marginBottom: 18 }}>
+      <div className="fd-insights-section">
         <p className="fd-eyebrow">Win rate</p>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, lineHeight: 1, color: winRate >= 50 ? "#4ade80" : "#f87171" }}>{winRate}%</span>
-          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.32)" }}>{wins}W · {losses}L</span>
+        <div className="flex items-baseline gap-2">
+          <span className={cn("fd-insights-winrate-val", winRate >= 50 ? "fd-insights-winrate-val--good" : "fd-insights-winrate-val--bad")}>
+            {winRate}%
+          </span>
+          <span className="fd-insights-winrate-sub">{wins}W · {losses}L</span>
         </div>
       </div>
 
-      {/* Donut charts */}
       {(winTotal > 0 || lossTotal > 0) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 20px", marginBottom: 18 }}>
+        <div className="fd-insights-donut-grid">
           {winTotal > 0  && <FinishDonut breakdown={winBreakdown}  title="How wins ended"   centerLabel="wins"   />}
           {lossTotal > 0 && <FinishDonut breakdown={lossBreakdown} title="How losses ended" centerLabel="losses" />}
         </div>
       )}
 
-      {/* Activity bars */}
       {years.length > 0 && <ActivityBars years={years} />}
-      <div style={{ height: 28 }} aria-hidden />
+      <div className="h-7" aria-hidden />
     </div>
   );
 }
@@ -1115,54 +1141,46 @@ function FightRow({ fight, isLast }: { fight: any; isLast: boolean }) {
     titleStr || bonusStr;
 
   return (
-    <div className="fd-fight-row" style={isLast ? { borderBottom: "none" } : {}}>
-      {/* Colored result column */}
-      <div style={{ width: 52, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: meta.bg, borderRight: `1px solid ${meta.border}` }}>
-        <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: "0.04em", color: meta.color }}>
-          {meta.label}
-        </span>
+    <div className={cn("fd-fight-row", isLast && "border-b-0")}>
+      <div className={cn("fd-fight-result", `fd-fight-result--${meta.tone}`)}>
+        {meta.label}
       </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "stretch" }}>
+      <div className="fd-fight-body">
+        <div className="fd-fight-main">
           <button
             type="button"
+            className={cn("fd-fight-toggle", expanded && "fd-fight-toggle--expanded")}
             onClick={() => hasDetails && setExpanded(v => !v)}
             disabled={!hasDetails}
-            style={{ flex: 1, minWidth: 0, display: "flex", background: expanded ? "rgba(255,255,255,0.03)" : "transparent", border: "none", padding: 0, margin: 0, textAlign: "left" as const, cursor: hasDetails ? "pointer" : "default" }}
           >
-            <div style={{ flex: 1, minWidth: 0, padding: "12px 14px" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-                    vs. {fight.name ?? "Unknown"}
-                  </p>
-                  <div style={{ marginTop: 4, display: "flex", flexWrap: "wrap", gap: "3px 10px" }}>
-                    {method && <span style={{ fontSize: 11, fontWeight: 600, color: meta.color }}>{method}</span>}
-                    {fight.organization && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.38)" }}>{fight.organization}</span>}
-                    {fight.event_date && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.26)" }}>{formatDate(fight.event_date)}</span>}
+            <div className="fd-fight-content">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="fd-fight-opponent">vs. {opponentDisplayName(fight)}</p>
+                  <div className="fd-fight-meta">
+                    {method && <span className={`fd-fight-method--${meta.tone}`}>{method}</span>}
+                    {fight.organization && <span className="fd-fight-org">{fight.organization}</span>}
+                    {fight.event_date && <span className="fd-fight-date">{formatDate(fight.event_date)}</span>}
                   </div>
                   <FightHighlightBadges titleBout={fight.title_bout} titleStatus={fight.title_status} bonuses={fight.bonuses} />
                 </div>
                 {hasDetails && (
-                  <ChevronDown size={14} style={{ flexShrink: 0, marginTop: 3, color: "rgba(255,255,255,0.28)", transform: expanded ? "rotate(180deg)" : "none", transition: "transform 200ms ease" }} />
+                  <ChevronDown size={14} className={cn("fd-fight-expand", expanded && "fd-fight-expand--open")} />
                 )}
               </div>
             </div>
           </button>
           {fight.link && (
             <a href={fight.link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-              aria-label="View fight record"
-              style={{ display: "flex", alignItems: "center", padding: "0 12px", color: "rgba(255,255,255,0.32)", flexShrink: 0, textDecoration: "none" }}>
+              aria-label="View fight record" className="fd-fight-link">
               <ExternalLink size={13} />
             </a>
           )}
         </div>
 
-        {/* Expanded detail grid */}
         {expanded && hasDetails && (
-          <div style={{ padding: "4px 14px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "12px 16px", background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          <div className="fd-fight-expand-panel fd-detail-grid">
             {fight.event_name    && <DetailCell label="Event"           value={fight.event_name} />}
             {fight.sport         && <DetailCell label="Sport"           value={sportDisplayLabel(fight.sport)} />}
             {fight.billing       && <DetailCell label="Billing"         value={fight.billing} />}
@@ -1182,106 +1200,9 @@ function FightRow({ fight, isLast }: { fight: any; isLast: boolean }) {
 
 function DetailCell({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.26)", marginBottom: 3 }}>{label}</p>
-      <p style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{value}</p>
-    </div>
-  );
-}
-
-// ── Videos tab ────────────────────────────────────────────────────────────────
-
-function VideosTab({ fighterId, matchmakerId }: { fighterId: string; matchmakerId: string | undefined }) {
-  const qc = useQueryClient();
-
-  const { data: videos = [], isLoading } = useQuery({
-    queryKey: ["fighter-videos", fighterId],
-    queryFn: async () => {
-      const { data } = await supabase.from("videos").select("*").eq("user_id", fighterId).order("created_at", { ascending: false });
-      return data ?? [];
-    },
-  });
-
-  const { data: accessRequests = [] } = useQuery({
-    queryKey: ["video-access", fighterId, matchmakerId],
-    enabled: !!matchmakerId,
-    queryFn: async () => {
-      const { data } = await supabase.from("video_access_requests").select("id, status").eq("fighter_id", fighterId).eq("matchmaker_id", matchmakerId!);
-      return data ?? [];
-    },
-  });
-
-  const requestAccess = useMutation({
-    mutationFn: async () => {
-      await supabase.from("video_access_requests").insert({ fighter_id: fighterId, matchmaker_id: matchmakerId!, status: "pending" });
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["video-access", fighterId, matchmakerId] }),
-  });
-
-  if (isLoading) return <TabLoader />;
-
-  const publicVideos  = videos.filter(v => v.visibility === "public");
-  const privateVideos = videos.filter(v => v.visibility !== "public");
-  const accessStatus  = accessRequests[0]?.status;
-
-  if (!videos.length) return <TabEmpty label="No videos uploaded" />;
-
-  return (
-    <>
-      {publicVideos.length > 0 && (
-        <div className="fd-up fd-fight-list" style={delay(0)}>
-          {publicVideos.map((v, i) => <VideoRow key={v.id} video={v} isLast={i === publicVideos.length - 1 && !privateVideos.length} />)}
-        </div>
-      )}
-
-      {privateVideos.length > 0 && (
-        <div className="fd-up" style={{ ...glass({ padding: "14px 16px" }), ...delay(40) }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 34, height: 34, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.04)" }}>
-                <Lock size={14} style={{ color: "rgba(255,255,255,0.40)" }} />
-              </div>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>{privateVideos.length} private video{privateVideos.length > 1 ? "s" : ""}</p>
-                <p style={{ marginTop: 2, fontSize: 11, color: "rgba(255,255,255,0.35)" }}>Requires fighter approval</p>
-              </div>
-            </div>
-            {!accessStatus && (
-              <button onClick={() => requestAccess.mutate()} style={{ fontSize: 11, fontWeight: 700, color: "#fff", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 8, padding: "8px 14px", background: "transparent", cursor: "pointer" }}>
-                Request access
-              </button>
-            )}
-            {accessStatus === "pending"  && <span style={{ fontSize: 11, fontWeight: 700, color: "#fbbf24" }}>Pending approval</span>}
-            {accessStatus === "rejected" && <span style={{ fontSize: 11, fontWeight: 700, color: "#f87171"  }}>Access denied</span>}
-          </div>
-          {accessStatus === "approved" && (
-            <div style={{ marginTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12 }}>
-              {privateVideos.map((v, i) => <VideoRow key={v.id} video={v} isLast={i === privateVideos.length - 1} />)}
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function VideoRow({ video, isLast }: { video: any; isLast: boolean }) {
-  const isYT = video.url?.includes("youtube") || video.url?.includes("youtu.be");
-  const isVimeo = video.url?.includes("vimeo");
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: isLast ? "none" : "1px solid rgba(255,255,255,0.05)" }}>
-      <div style={{ width: 34, height: 34, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.04)", flexShrink: 0 }}>
-        <Play size={14} style={{ color: "#E8001D" }} />
-      </div>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>
-        {video.title ?? (isYT ? "YouTube" : isVimeo ? "Vimeo" : "Video")}
-      </span>
-      {video.url && (
-        <a href={video.url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 6, padding: "5px 10px", flexShrink: 0 }}>
-          <ExternalLink size={11} />Watch
-        </a>
-      )}
+    <div className="fd-detail-cell">
+      <p className="fd-detail-cell-label">{label}</p>
+      <p className="fd-detail-cell-value">{value}</p>
     </div>
   );
 }
@@ -1316,59 +1237,59 @@ function AboutTab({ fighter }: { fighter: Fighter }) {
   const latestFollowers = snapshots.length > 0 ? snapshots[snapshots.length - 1].follower_count : null;
 
   return (
-    <>
-      {/* Physical stat tiles */}
+    <div className="fd-dossier">
+      <div className="cmp-physical-insight">
+        <span className="cmp-physical-insight-dot" aria-hidden />
+        <p className="cmp-physical-insight-text">{aboutPhysicalInsight(fighter, latestFollowers)}</p>
+      </div>
+
       {statTiles.length > 0 && (
-        <div className="fd-stat-grid fd-up" style={delay(0)}>
+        <div className="fd-metrics-grid fd-up" style={delay(0)}>
           {statTiles.map(t => (
-            <div key={t.label} className="fd-stat-tile">
-              <p style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.28)", marginBottom: 6 }}>{t.label}</p>
-              <p style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{t.value}</p>
+            <div key={t.label} className="fd-metric-tile">
+              <p className="fd-metric-tile-label">{t.label}</p>
+              <p className="fd-metric-tile-value">{t.value}</p>
             </div>
           ))}
         </div>
       )}
 
-      {/* Instagram growth chart */}
       {igSnapshots.length >= 2 && (
         <div className="fd-up" style={delay(60)}>
           <InstagramGrowthChart snapshots={igSnapshots} />
         </div>
       )}
 
-      {/* Instagram follower count (when only 1 snapshot) */}
       {igSnapshots.length === 1 && latestFollowers != null && fighter.instagram && (
-        <div className="fd-up" style={{ ...glass({ padding: "14px 16px" }), ...delay(60) }}>
-          <a href={`https://instagram.com/${fighter.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
-            <Instagram size={18} style={{ color: "#E8001D", flexShrink: 0 }} />
+        <div className="cmp-compare-card fd-up" style={delay(60)}>
+          <a href={`https://instagram.com/${fighter.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer" className="fd-ig-link">
+            <Instagram size={18} className="fd-ig-link-icon" />
             <div>
-              <p style={{ fontSize: 15, fontWeight: 600, color: "#fff" }}>@{fighter.instagram.replace("@", "")}</p>
-              <p style={{ marginTop: 2, fontSize: 11, color: "rgba(255,255,255,0.36)" }}>{latestFollowers.toLocaleString()} followers</p>
+              <p className="fd-ig-link-handle">@{fighter.instagram.replace("@", "")}</p>
+              <p className="fd-ig-link-followers">{latestFollowers.toLocaleString()} followers</p>
             </div>
-            <ExternalLink size={13} style={{ marginLeft: "auto", color: "rgba(255,255,255,0.28)" }} />
+            <ExternalLink size={13} className="fd-ig-link-ext" />
           </a>
         </div>
       )}
 
-      {/* Instagram link (no snapshot at all) */}
       {igSnapshots.length === 0 && fighter.instagram && (
-        <div className="fd-up" style={{ ...glass({ padding: "14px 16px" }), ...delay(60) }}>
-          <a href={`https://instagram.com/${fighter.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
-            <Instagram size={18} style={{ color: "#E8001D", flexShrink: 0 }} />
-            <p style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>@{fighter.instagram.replace("@", "")}</p>
-            <ExternalLink size={13} style={{ marginLeft: "auto", color: "rgba(255,255,255,0.28)" }} />
+        <div className="cmp-compare-card fd-up" style={delay(60)}>
+          <a href={`https://instagram.com/${fighter.instagram.replace("@", "")}`} target="_blank" rel="noopener noreferrer" className="fd-ig-link">
+            <Instagram size={18} className="fd-ig-link-icon" />
+            <p className="fd-ig-link-handle">@{fighter.instagram.replace("@", "")}</p>
+            <ExternalLink size={13} className="fd-ig-link-ext" />
           </a>
         </div>
       )}
 
-      {/* Verified passports */}
       {passports.length > 0 && (
-        <div className="fd-up" style={{ ...glass({ padding: "14px 16px" }), ...delay(120) }}>
-          <p className="fd-eyebrow">Verified passport / travel eligibility</p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        <div className="cmp-compare-card fd-up" style={delay(120)}>
+          <p className="fd-eyebrow px-4 pt-3.5">Verified passport / travel eligibility</p>
+          <div className="fd-passport-list">
             {passports.map(p => (
-              <span key={p.passport_country} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, border: "1px solid rgba(74,222,128,0.25)", borderRadius: 6, padding: "4px 10px", color: "rgba(255,255,255,0.82)" }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <span key={p.passport_country} className="fd-passport-tag">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--available)]">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 {p.passport_country}
@@ -1378,14 +1299,13 @@ function AboutTab({ fighter }: { fighter: Fighter }) {
         </div>
       )}
 
-      {/* Team */}
       {fighter.team_name && (
-        <div className="fd-up" style={{ ...glass({ padding: "14px 16px" }), ...delay(160) }}>
+        <div className="cmp-compare-card fd-up fd-team-block" style={delay(160)}>
           <p className="fd-eyebrow">Team</p>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#fff" }}>{fighter.team_name}</p>
+          <p className="fd-team-name">{fighter.team_name}</p>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -1428,44 +1348,54 @@ function InstagramGrowthChart({ snapshots }: { snapshots: IgSnapshot[] }) {
   if (!pts) return null;
 
   const lastPt = pts.coords[pts.coords.length - 1];
-  const deltaColor = pts.delta >= 0 ? "#4ade80" : "#f87171";
 
   return (
-    <div style={{ ...glass({ padding: "14px 16px" }) }}>
-      <button type="button" onClick={() => setExpanded(v => !v)} style={{ display: "block", width: "100%", padding: 0, border: "none", background: "transparent", cursor: "pointer", textAlign: "left" as const }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p className="fd-eyebrow" style={{ marginBottom: 10 }}>Instagram growth</p>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, lineHeight: 1, color: "#fff" }}>{pts.last.toLocaleString()}</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: deltaColor }}>
-                {pts.delta >= 0 ? "+" : ""}{pts.delta.toLocaleString()} ({pts.deltaPct})
-              </span>
-            </div>
-            <p style={{ marginTop: 4, fontSize: 10, color: "rgba(255,255,255,0.26)" }}>Over {pts.days} days · {snapshots.length} snapshots</p>
-          </div>
-          <ChevronDown size={15} style={{ flexShrink: 0, marginTop: 2, color: "rgba(255,255,255,0.26)", transform: expanded ? "rotate(180deg)" : "none", transition: "transform 160ms ease" }} />
+    <div className="cmp-visibility-growth">
+      <button type="button" onClick={() => setExpanded(v => !v)} className="block w-full border-0 bg-transparent p-0 text-left cursor-pointer">
+        <div className="cmp-visibility-growth-head">
+          <span className="cmp-visibility-growth-eyebrow">Instagram growth</span>
+          <span className="cmp-visibility-growth-hint">From tracked snapshots</span>
         </div>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="cmp-visibility-growth-val">{pts.last.toLocaleString()}</span>
+          <span className={cn(
+            "cmp-visibility-growth-delta",
+            pts.delta >= 0 ? "cmp-visibility-growth-delta--up" : "cmp-visibility-growth-delta--down",
+          )}>
+            {pts.delta >= 0 ? "+" : ""}{pts.delta.toLocaleString()} ({pts.deltaPct})
+          </span>
+          <ChevronDown size={15} className={cn("shrink-0 text-white/26 transition-transform", expanded && "rotate-180")} />
+        </div>
+        <p className="cmp-visibility-growth-meta mt-1">
+          Over {pts.days} days · {snapshots.length} snapshots
+        </p>
       </button>
 
       {expanded && (
-        <div>
-          <svg width="100%" height={pts.H} viewBox={`0 0 ${pts.W} ${pts.H}`} preserveAspectRatio="xMidYMid meet" style={{ display: "block", marginTop: 12 }} aria-hidden>
+        <>
+          <svg
+            className="cmp-visibility-growth-chart mt-3"
+            width="100%"
+            height={pts.H}
+            viewBox={`0 0 ${pts.W} ${pts.H}`}
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden
+          >
             <defs>
               <linearGradient id="fd-ig-grad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor="#E8001D" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#E8001D" stopOpacity="0"    />
+                <stop offset="0%" stopColor="#E8001D" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#E8001D" stopOpacity="0" />
               </linearGradient>
             </defs>
             <path d={pts.area} fill="url(#fd-ig-grad)" />
             <path d={pts.line} fill="none" stroke="#E8001D" strokeWidth="2" strokeLinecap="round" opacity={0.85} />
             <circle cx={lastPt.x} cy={lastPt.y} r="4" fill="#E8001D" />
           </svg>
-          <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", fontSize: 9, color: "rgba(255,255,255,0.26)" }}>
+          <div className="cmp-visibility-growth-range">
             <span>{pts.coords[0].label} · {pts.coords[0].count.toLocaleString()}</span>
             <span>{lastPt.label} · {lastPt.count.toLocaleString()}</span>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -1475,16 +1405,12 @@ function InstagramGrowthChart({ snapshots }: { snapshots: IgSnapshot[] }) {
 
 function TabLoader() {
   return (
-    <div style={{ display: "flex", height: 120, alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 20, height: 20, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.10)", borderTopColor: "#E8001D", animation: "spin 0.7s linear infinite" }} />
+    <div className="fd-loader">
+      <div className="fd-loader-spinner" />
     </div>
   );
 }
 
 function TabEmpty({ label }: { label: string }) {
-  return (
-    <div style={{ ...glass({ padding: "32px 20px" }), textAlign: "center" as const, fontSize: 13, color: "rgba(255,255,255,0.28)" }}>
-      {label}
-    </div>
-  );
+  return <div className="fd-empty">{label}</div>;
 }

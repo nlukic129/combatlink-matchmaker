@@ -171,10 +171,17 @@ export type Database = {
         Row: {
           id: number;
           user_id: string;
-          title: string | null;
-          url: string;
+          title: string;
+          source: string;
+          storage_path: string | null;
+          external_url: string | null;
           visibility: string;
+          mime_type: string | null;
+          size_bytes: number | null;
+          duration_seconds: number | null;
+          thumbnail_path: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: Record<string, never>;
         Update: Record<string, never>;
@@ -253,6 +260,7 @@ export type Database = {
           fighter_id: string;
           note: string | null;
           notify: boolean;
+          is_saved: boolean;
           notified_at: string | null;
           created_at: string;
           tags: string[];
@@ -262,11 +270,13 @@ export type Database = {
           fighter_id: string;
           note?: string | null;
           notify?: boolean;
+          is_saved?: boolean;
           tags?: string[];
         };
         Update: {
           note?: string | null;
           notify?: boolean;
+          is_saved?: boolean;
           tags?: string[];
         };
         Relationships: [];

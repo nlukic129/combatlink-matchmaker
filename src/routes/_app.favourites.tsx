@@ -97,6 +97,7 @@ export function FavouritesPage() {
           ),
           matchmaker_favourite_notes (id, body, created_at)
         `)
+        .eq("is_saved", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as FavRow[];
@@ -219,9 +220,9 @@ export function FavouritesPage() {
       <div className="flex h-full flex-col items-center justify-center gap-4 px-6">
         <Heart className="h-10 w-10 text-muted-foreground/30" />
         <div className="text-center">
-          <p className="font-semibold text-foreground">No saved fighters yet</p>
+          <p className="font-semibold text-foreground">No favourites yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Hover over a fighter card in search and click the heart to save them here.
+            Click the heart on a fighter in search to add them to your favourites.
           </p>
         </div>
       </div>
@@ -247,7 +248,7 @@ export function FavouritesPage() {
             <div className="flex items-center gap-3 px-8 py-3">
               <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">{favourites.length}</span>
-                <span>saved</span>
+                <span>{favourites.length === 1 ? "favourite" : "favourites"}</span>
                 {counts.available > 0 && (
                   <span className="text-available">· {counts.available} available</span>
                 )}
@@ -545,7 +546,7 @@ function FavCard({
         <button
           onClick={onRemove}
           className="fc-fav hover:text-destructive"
-          title="Remove from saved"
+          title="Remove from favourites"
         >
           <Trash2 className="h-4 w-4" strokeWidth={1.5} />
         </button>
@@ -578,7 +579,7 @@ function DetailPanel({
       {/* Panel header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Saved Fighter
+          Favourite
         </span>
         <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground">
           <X className="h-4 w-4" />
@@ -615,7 +616,7 @@ function DetailPanel({
             </div>
           </div>
           <p className="mt-3 text-xs text-muted-foreground/40">
-            Saved {relativeTime(fav.created_at)}
+            Added {relativeTime(fav.created_at)}
           </p>
         </div>
 
@@ -720,7 +721,7 @@ function DetailPanel({
           <button
             onClick={onRemove}
             className="rounded-md p-2 text-muted-foreground/40 hover:text-destructive transition-colors"
-            title="Remove from saved"
+            title="Remove from favourites"
           >
             <Trash2 className="h-4 w-4" />
           </button>

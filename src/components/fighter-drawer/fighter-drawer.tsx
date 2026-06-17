@@ -78,7 +78,7 @@ export function FighterDrawer({ fighterId, activeSport, onClose: onCloseProp }: 
       <aside
         className={cn(
           "fixed right-0 top-0 z-50 flex h-dvh w-[70vw] flex-col",
-          "border-l border-border bg-sidebar shadow-[var(--shadow-elevated)]",
+          "border-l border-white/8 bg-sidebar shadow-[var(--shadow-elevated)]",
           isClosing
             ? "animate-out slide-out-to-right"
             : "animate-in slide-in-from-right duration-300"
@@ -86,10 +86,8 @@ export function FighterDrawer({ fighterId, activeSport, onClose: onCloseProp }: 
         style={isClosing ? { animationDuration: `${CLOSE_MS}ms`, animationFillMode: "both" } : undefined}
         aria-label="Fighter detail"
       >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Fighter Profile
-          </span>
+        <div className="flex items-center justify-between border-b border-white/6 bg-[oklch(0.10_0.012_270)] px-5 py-3.5">
+          <span className="cmp-eyebrow mb-0">Fighter profile</span>
           <Button variant="ghost" size="icon-sm" onClick={close} aria-label="Close">
             <X className="h-4 w-4" />
           </Button>

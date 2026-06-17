@@ -16,6 +16,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { FighterDrawer } from "@/components/fighter-drawer/fighter-drawer";
+import { SaveTagPopup, tagPopupPositionForAnchor } from "@/components/favourites/save-tag-popup";
+import { saveFavourite, removeSavedFavourite } from "@/lib/favourite-mutations";
 import type { Fighter } from "@/types/database";
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
@@ -580,15 +582,18 @@ function FighterPanel({
   const { matchmaker } = useAuth();
   const { format } = useCurrency();
   const fighterId = data.fighter?.id ?? null;
+  const saveBtnRef = useRef<HTMLButtonElement>(null);
+  const wasAddingRef = useRef(false);
+  const [tagPopup, setTagPopup] = useState<{ top: number; right: number } | null>(null);
 
   const { data: isFavourite } = useQuery({
     queryKey: ["favourite", fighterId],
     enabled: !!fighterId,
     queryFn: async () => {
       const { data: row } = await supabase
-        .from("matchmaker_favourites").select("id")
+        .from("matchmaker_favourites").select("id, is_saved")
         .eq("fighter_id", fighterId!).maybeSingle();
-      return !!row;
+      return row?.is_saved === true;
     },
   });
 
@@ -596,17 +601,26 @@ function FighterPanel({
     mutationFn: async () => {
       if (!fighterId) return;
       if (isFavourite) {
-        await supabase.from("matchmaker_favourites").delete().eq("fighter_id", fighterId);
+        await removeSavedFavourite(supabase, fighterId);
       } else {
-        await supabase.from("matchmaker_favourites").insert({ matchmaker_id: matchmaker!.id, fighter_id: fighterId });
+        await saveFavourite(supabase, matchmaker!.id, fighterId);
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["favourite", fighterId] });
+      qc.invalidateQueries({ queryKey: ["favourite-detail", fighterId] });
       qc.invalidateQueries({ queryKey: ["favourites"] });
-      qc.invalidateQueries({ queryKey: ["saved-fighter-ids"] });
+      qc.invalidateQueries({ queryKey: ["favourite-fighter-ids"] });
+      if (wasAddingRef.current && saveBtnRef.current) {
+        setTagPopup(tagPopupPositionForAnchor(saveBtnRef.current));
+      }
     },
   });
+
+  function handleSaveClick() {
+    wasAddingRef.current = !isFavourite;
+    toggleFav.mutate();
+  }
 
   if (data.isLoading) {
     return <div className="cmp-poster-loading"><Spinner size="lg" /></div>;
@@ -738,19 +752,25 @@ function FighterPanel({
 
         <div className="cmp-poster-actions">
           <Button
+            ref={saveBtnRef}
             variant="outline"
             size="sm"
-            onClick={() => toggleFav.mutate()}
+            onClick={handleSaveClick}
             className={cn("flex-1", isFavourite && "border-red-500/40 text-red-400")}
+            title={isFavourite ? "Remove from favourites" : "Save to favourites"}
           >
             <Heart className={cn("h-3.5 w-3.5", isFavourite && "fill-current")} />
-            {isFavourite ? "Saved" : "Save"}
+            {isFavourite ? "In favourites" : "Save"}
           </Button>
           <Button variant="outline" size="sm" className="flex-1" onClick={() => onOpenDrawer(f.id)}>
             Full profile
           </Button>
         </div>
       </div>
+
+      {tagPopup && fighterId && (
+        <SaveTagPopup fighterId={fighterId} pos={tagPopup} onClose={() => setTagPopup(null)} />
+      )}
     </div>
   );
 }
@@ -1748,45 +1768,55 @@ function RecordSection({ left, right, sport }: { left: FighterData; right: Fight
       />
 
       {hasMeta && (
-        <div className="cmp-compare-card cmp-record-meta">
-          {(lAmateurTotal > 0 || rAmateurTotal > 0) && (
-            <CompareRow
-              label="Amateur"
-              left={lAmateurTotal > 0 && ls ? `${ls.amateur_w}W ${ls.amateur_l}L ${ls.amateur_d}D` : "—"}
-              right={rAmateurTotal > 0 && rs ? `${rs.amateur_w}W ${rs.amateur_l}L ${rs.amateur_d}D` : "—"}
-              adv={calcAdv(lAmateurTotal > 0 ? ls?.amateur_w : null, rAmateurTotal > 0 ? rs?.amateur_w : null, "higher")}
-            />
-          )}
-          {(lWc.length > 0 || rWc.length > 0) && (
-            <CompareRow
-              label="Weight class"
-              left={lWc.length > 0 ? (
-                <div className="flex flex-wrap justify-end gap-1">
-                  {lWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
-                </div>
-              ) : "—"}
-              right={rWc.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {rWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
-                </div>
-              ) : "—"}
-            />
-          )}
-          {(lFs.length > 0 || rFs.length > 0) && (
-            <CompareRow
-              label="Fight style"
-              left={lFs.length > 0 ? (
-                <div className="flex flex-wrap justify-end gap-1">
-                  {lFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
-                </div>
-              ) : "—"}
-              right={rFs.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {rFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
-                </div>
-              ) : "—"}
-            />
-          )}
+        <div className="cmp-record-meta">
+          <div className="cmp-record-meta-head">
+            <h3 className="cmp-record-meta-title">Sport profile</h3>
+            <p className="cmp-record-meta-sub">Amateur record, weight classes & fight styles</p>
+          </div>
+          <div className="cmp-record-meta-rows">
+            {(lAmateurTotal > 0 || rAmateurTotal > 0) && (
+              <CompareRow
+                label="Amateur"
+                left={lAmateurTotal > 0 && ls ? (
+                  <span className="cmp-record-meta-val">{ls.amateur_w}W {ls.amateur_l}L {ls.amateur_d}D</span>
+                ) : "—"}
+                right={rAmateurTotal > 0 && rs ? (
+                  <span className="cmp-record-meta-val">{rs.amateur_w}W {rs.amateur_l}L {rs.amateur_d}D</span>
+                ) : "—"}
+                adv={calcAdv(lAmateurTotal > 0 ? ls?.amateur_w : null, rAmateurTotal > 0 ? rs?.amateur_w : null, "higher")}
+              />
+            )}
+            {(lWc.length > 0 || rWc.length > 0) && (
+              <CompareRow
+                label="Weight class"
+                left={lWc.length > 0 ? (
+                  <div className="cmp-compare-tags">
+                    {lWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
+                  </div>
+                ) : "—"}
+                right={rWc.length > 0 ? (
+                  <div className="cmp-compare-tags">
+                    {rWc.map((wc: AnyRow) => <span key={wc.id} className="cmp-tag">{wc.name}</span>)}
+                  </div>
+                ) : "—"}
+              />
+            )}
+            {(lFs.length > 0 || rFs.length > 0) && (
+              <CompareRow
+                label="Fight style"
+                left={lFs.length > 0 ? (
+                  <div className="cmp-compare-tags">
+                    {lFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
+                  </div>
+                ) : "—"}
+                right={rFs.length > 0 ? (
+                  <div className="cmp-compare-tags">
+                    {rFs.map((fs: AnyRow) => <span key={fs.id} className="cmp-tag">{fs.label}</span>)}
+                  </div>
+                ) : "—"}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -1820,142 +1850,142 @@ function BookingSection({ left, right }: { left: FighterData; right: FighterData
         <p className="cmp-booking-readiness-text">{readiness.message}</p>
       </div>
 
-      <div className="cmp-booking-hero-grid">
-        <BookingHeroCard
-          name={lf.first_name}
-          fighter={lf}
-          side="left"
-          adv={availAdv === "left"}
-        />
-        <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
-        <BookingHeroCard
-          name={rf.first_name}
-          fighter={rf}
-          side="right"
-          adv={availAdv === "right"}
-        />
-      </div>
+      <div className="cmp-booking-duel">
+        <div className="cmp-booking-duel-axis-line" aria-hidden />
 
-      <div className="cmp-booking-purse">
-        <div className="cmp-booking-purse-head">
-          <span className="cmp-booking-purse-eyebrow">Fight purse</span>
-          <span className="cmp-booking-purse-hint">Ask vs ask · lower may ease budget</span>
+        <div className="cmp-booking-duel-hero">
+          <BookingHeroCard
+            name={lf.first_name}
+            fighter={lf}
+            side="left"
+            adv={availAdv === "left"}
+          />
+          <div className="cmp-booking-duel-axis">
+            <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+          </div>
+          <BookingHeroCard
+            name={rf.first_name}
+            fighter={rf}
+            side="right"
+            adv={availAdv === "right"}
+          />
         </div>
-        <div className="cmp-booking-purse-grid">
-          <div className={cn("cmp-booking-purse-side", purseAdv === "left" && "cmp-booking-purse-side--adv")}>
-            <span className="cmp-booking-purse-fighter">{lf.first_name}</span>
-            <div className="cmp-booking-purse-body">
-              {lf.purse_usd != null ? (
-                <>
-                  <span className="cmp-booking-purse-val">{format(lf.purse_usd)}</span>
-                  <span className="cmp-booking-purse-tag">
-                    {lf.purse_negotiable ? "Negotiable" : "Fixed ask"}
-                  </span>
-                  <div className="cmp-booking-purse-bar">
-                    <div
-                      className="cmp-booking-purse-bar-fill"
-                      style={{ width: `${((lf.purse_usd ?? 0) / maxPurse) * 100}%` }}
-                    />
-                  </div>
-                </>
-              ) : (
-                <span className="cmp-booking-purse-empty">Purse not listed</span>
-              )}
+
+        <div className="cmp-booking-purse">
+          <div className="cmp-booking-purse-head">
+            <span className="cmp-booking-purse-eyebrow">Fight purse</span>
+            <span className="cmp-booking-purse-hint">Ask vs ask · lower may ease budget</span>
+          </div>
+          <div className="cmp-booking-purse-duel">
+            <div className={cn("cmp-booking-purse-side", purseAdv === "left" && "cmp-booking-purse-side--adv")}>
+              <span className="cmp-booking-purse-fighter">{lf.first_name}</span>
+              <div className="cmp-booking-purse-body">
+                {lf.purse_usd != null ? (
+                  <>
+                    <span className="cmp-booking-purse-val">{format(lf.purse_usd)}</span>
+                    <span className="cmp-booking-purse-tag">
+                      {lf.purse_negotiable ? "Negotiable" : "Fixed ask"}
+                    </span>
+                    <div className="cmp-booking-purse-bar">
+                      <div
+                        className="cmp-booking-purse-bar-fill"
+                        style={{ width: `${((lf.purse_usd ?? 0) / maxPurse) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <span className="cmp-booking-purse-empty">Purse not listed</span>
+                )}
+              </div>
+            </div>
+
+            <div className="cmp-booking-duel-axis-spacer" aria-hidden />
+
+            <div className={cn("cmp-booking-purse-side cmp-booking-purse-side--right", purseAdv === "right" && "cmp-booking-purse-side--adv")}>
+              <span className="cmp-booking-purse-fighter">{rf.first_name}</span>
+              <div className="cmp-booking-purse-body">
+                {rf.purse_usd != null ? (
+                  <>
+                    <span className="cmp-booking-purse-val">{format(rf.purse_usd)}</span>
+                    <span className="cmp-booking-purse-tag">
+                      {rf.purse_negotiable ? "Negotiable" : "Fixed ask"}
+                    </span>
+                    <div className="cmp-booking-purse-bar">
+                      <div
+                        className="cmp-booking-purse-bar-fill cmp-booking-purse-bar-fill--right"
+                        style={{ width: `${((rf.purse_usd ?? 0) / maxPurse) * 100}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <span className="cmp-booking-purse-empty">Purse not listed</span>
+                )}
+              </div>
             </div>
           </div>
+        </div>
 
-          <div className="cmp-duel-vs" aria-hidden><span>VS</span></div>
+        <div className="cmp-booking-logistics">
+          <div className="cmp-booking-logistics-head">
+            <h3 className="cmp-booking-logistics-title">Lead time & flexibility</h3>
+            <p className="cmp-booking-logistics-sub">Prep required and short-notice appetite</p>
+          </div>
 
-          <div className={cn("cmp-booking-purse-side cmp-booking-purse-side--right", purseAdv === "right" && "cmp-booking-purse-side--adv")}>
-            <span className="cmp-booking-purse-fighter">{rf.first_name}</span>
-            <div className="cmp-booking-purse-body">
-              {rf.purse_usd != null ? (
-                <>
-                  <span className="cmp-booking-purse-val">{format(rf.purse_usd)}</span>
-                  <span className="cmp-booking-purse-tag">
-                    {rf.purse_negotiable ? "Negotiable" : "Fixed ask"}
-                  </span>
-                  <div className="cmp-booking-purse-bar">
+          <BookingLogisticsRow
+            label="Prep time"
+            icon={<Clock className="h-3 w-3" aria-hidden />}
+            leftAdv={prepAdv === "left"}
+            rightAdv={prepAdv === "right"}
+            left={(
+              <>
+                <span className="cmp-booking-logistics-val">{prepLabel(lf.preparation_weeks)}</span>
+                {lf.preparation_weeks != null && (
+                  <div className="cmp-booking-logistics-bar">
                     <div
-                      className="cmp-booking-purse-bar-fill"
-                      style={{ width: `${((rf.purse_usd ?? 0) / maxPurse) * 100}%` }}
+                      className="cmp-booking-logistics-bar-fill cmp-booking-logistics-bar-fill--left"
+                      style={{ width: `${((maxPrep - (lf.preparation_weeks ?? 0)) / maxPrep) * 100}%` }}
                     />
                   </div>
-                </>
-              ) : (
-                <span className="cmp-booking-purse-empty">Purse not listed</span>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="cmp-booking-logistics">
-        <div className="cmp-booking-logistics-head">
-          <h3 className="cmp-booking-logistics-title">Lead time & flexibility</h3>
-          <p className="cmp-booking-logistics-sub">Prep required and short-notice appetite</p>
-        </div>
-
-        <div className="cmp-booking-logistics-row">
-          <div className="cmp-booking-logistics-label">
-            <Clock className="h-3.5 w-3.5" aria-hidden />
-            <span>Prep time</span>
-          </div>
-          <div className={cn("cmp-booking-logistics-end cmp-booking-logistics-end--left", prepAdv === "left" && "cmp-booking-logistics-end--adv")}>
-            <span className="cmp-booking-logistics-val">{prepLabel(lf.preparation_weeks)}</span>
-            {lf.preparation_weeks != null && (
-              <div className="cmp-booking-logistics-bar">
-                <div
-                  className="cmp-booking-logistics-bar-fill cmp-booking-logistics-bar-fill--left"
-                  style={{
-                    width: `${((maxPrep - (lf.preparation_weeks ?? 0)) / maxPrep) * 100}%`,
-                  }}
-                />
-              </div>
+                )}
+              </>
             )}
-          </div>
-          <div className={cn("cmp-booking-logistics-end cmp-booking-logistics-end--right", prepAdv === "right" && "cmp-booking-logistics-end--adv")}>
-            {rf.preparation_weeks != null && (
-              <div className="cmp-booking-logistics-bar">
-                <div
-                  className="cmp-booking-logistics-bar-fill cmp-booking-logistics-bar-fill--right"
-                  style={{
-                    width: `${((maxPrep - (rf.preparation_weeks ?? 0)) / maxPrep) * 100}%`,
-                  }}
-                />
-              </div>
+            right={(
+              <>
+                {rf.preparation_weeks != null && (
+                  <div className="cmp-booking-logistics-bar">
+                    <div
+                      className="cmp-booking-logistics-bar-fill cmp-booking-logistics-bar-fill--right"
+                      style={{ width: `${((maxPrep - (rf.preparation_weeks ?? 0)) / maxPrep) * 100}%` }}
+                    />
+                  </div>
+                )}
+                <span className="cmp-booking-logistics-val">{prepLabel(rf.preparation_weeks)}</span>
+              </>
             )}
-            <span className="cmp-booking-logistics-val">{prepLabel(rf.preparation_weeks)}</span>
-          </div>
-        </div>
+          />
 
-        <div className="cmp-booking-logistics-row">
-          <div className="cmp-booking-logistics-label">
-            <Zap className="h-3.5 w-3.5" aria-hidden />
-            <span>Short notice</span>
-          </div>
-          <div className={cn(
-            "cmp-booking-logistics-end cmp-booking-logistics-end--left",
-            lf.open_to_short_notice && !rf.open_to_short_notice && "cmp-booking-logistics-end--adv",
-          )}>
-            <span className={cn(
-              "cmp-booking-short",
-              lf.open_to_short_notice ? "cmp-booking-short--yes" : "cmp-booking-short--no",
-            )}>
-              {lf.open_to_short_notice ? <><Zap className="h-3 w-3" />Yes</> : "No"}
-            </span>
-          </div>
-          <div className={cn(
-            "cmp-booking-logistics-end cmp-booking-logistics-end--right",
-            rf.open_to_short_notice && !lf.open_to_short_notice && "cmp-booking-logistics-end--adv",
-          )}>
-            <span className={cn(
-              "cmp-booking-short",
-              rf.open_to_short_notice ? "cmp-booking-short--yes" : "cmp-booking-short--no",
-            )}>
-              {rf.open_to_short_notice ? <><Zap className="h-3 w-3" />Yes</> : "No"}
-            </span>
-          </div>
+          <BookingLogisticsRow
+            label="Short notice"
+            icon={<Zap className="h-3 w-3" aria-hidden />}
+            leftAdv={lf.open_to_short_notice && !rf.open_to_short_notice}
+            rightAdv={rf.open_to_short_notice && !lf.open_to_short_notice}
+            left={(
+              <span className={cn(
+                "cmp-booking-short",
+                lf.open_to_short_notice ? "cmp-booking-short--yes" : "cmp-booking-short--no",
+              )}>
+                {lf.open_to_short_notice ? <><Zap className="h-3 w-3" />Yes</> : "No"}
+              </span>
+            )}
+            right={(
+              <span className={cn(
+                "cmp-booking-short",
+                rf.open_to_short_notice ? "cmp-booking-short--yes" : "cmp-booking-short--no",
+              )}>
+                {rf.open_to_short_notice ? <><Zap className="h-3 w-3" />Yes</> : "No"}
+              </span>
+            )}
+          />
         </div>
       </div>
 
@@ -2026,38 +2056,111 @@ function BookingHeroCard({
   side: "left" | "right";
   adv: boolean;
 }) {
+  const isLeft = side === "left";
+
   return (
     <div className={cn(
       "cmp-booking-hero-card",
-      side === "left" ? "cmp-booking-hero-card--left" : "cmp-booking-hero-card--right",
+      isLeft ? "cmp-booking-hero-card--left" : "cmp-booking-hero-card--right",
       adv && "cmp-booking-hero-card--adv",
     )}>
       <span className="cmp-booking-hero-name">{name}</span>
       <div className="cmp-booking-hero-body">
         <AvailabilityBadge status={fighter.availability_status} />
         <div className="cmp-booking-hero-facts">
-          <div className="cmp-booking-hero-fact">
-            <Calendar className="h-3 w-3" aria-hidden />
-            <span className="cmp-booking-hero-fact-lbl">Available from</span>
-            <span className="cmp-booking-hero-fact-val">{formatAvailableFrom(fighter)}</span>
-          </div>
-          <div className="cmp-booking-hero-fact">
-            <Clock className="h-3 w-3" aria-hidden />
-            <span className="cmp-booking-hero-fact-lbl">Prep needed</span>
-            <span className="cmp-booking-hero-fact-val">{prepLabel(fighter.preparation_weeks)}</span>
-          </div>
-          <div className="cmp-booking-hero-fact">
-            <Zap className="h-3 w-3" aria-hidden />
-            <span className="cmp-booking-hero-fact-lbl">Short notice</span>
-            <span className={cn(
-              "cmp-booking-hero-fact-val",
-              fighter.open_to_short_notice && "text-emerald-400",
-            )}>
-              {fighter.open_to_short_notice ? "Yes" : "No"}
-            </span>
-          </div>
+          <BookingHeroFact
+            side={side}
+            icon={<Calendar className="h-3 w-3" aria-hidden />}
+            label="Available from"
+            value={formatAvailableFrom(fighter)}
+          />
+          <BookingHeroFact
+            side={side}
+            icon={<Clock className="h-3 w-3" aria-hidden />}
+            label="Prep needed"
+            value={prepLabel(fighter.preparation_weeks)}
+          />
+          <BookingHeroFact
+            side={side}
+            icon={<Zap className="h-3 w-3" aria-hidden />}
+            label="Short notice"
+            value={fighter.open_to_short_notice ? "Yes" : "No"}
+            highlight={fighter.open_to_short_notice}
+          />
         </div>
       </div>
+    </div>
+  );
+}
+
+function BookingHeroFact({
+  side, icon, label, value, highlight,
+}: {
+  side: "left" | "right";
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  const valueNode = (
+    <span className={cn("cmp-booking-hero-fact-val", highlight && "cmp-booking-hero-fact-val--yes")}>
+      {highlight ? <><Zap className="h-3 w-3" />{value}</> : value}
+    </span>
+  );
+
+  if (side === "left") {
+    return (
+      <div className="cmp-booking-hero-fact cmp-booking-hero-fact--left">
+        {icon}
+        <span className="cmp-booking-hero-fact-lbl">{label}</span>
+        {valueNode}
+      </div>
+    );
+  }
+
+  return (
+    <div className="cmp-booking-hero-fact cmp-booking-hero-fact--right">
+      {valueNode}
+      <span className="cmp-booking-hero-fact-lbl">{label}</span>
+      {icon}
+    </div>
+  );
+}
+
+function BookingLogisticsRow({
+  label, icon, left, right, leftAdv, rightAdv,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  left: React.ReactNode;
+  right: React.ReactNode;
+  leftAdv?: boolean;
+  rightAdv?: boolean;
+}) {
+  const tag = (
+    <div className="cmp-booking-logistics-tag-inner">
+      {icon}
+      <span>{label}</span>
+    </div>
+  );
+
+  return (
+    <div className="cmp-booking-logistics-row">
+      <div className="cmp-booking-logistics-tag cmp-booking-logistics-tag--left">{tag}</div>
+      <div className={cn(
+        "cmp-booking-logistics-side cmp-booking-logistics-side--left",
+        leftAdv && "cmp-booking-logistics-side--adv",
+      )}>
+        {left}
+      </div>
+      <div className="cmp-booking-logistics-axis" aria-hidden />
+      <div className={cn(
+        "cmp-booking-logistics-side cmp-booking-logistics-side--right",
+        rightAdv && "cmp-booking-logistics-side--adv",
+      )}>
+        {right}
+      </div>
+      <div className="cmp-booking-logistics-tag cmp-booking-logistics-tag--right">{tag}</div>
     </div>
   );
 }

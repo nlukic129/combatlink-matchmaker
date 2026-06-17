@@ -23,14 +23,17 @@ const PAGE_SIZE = 20;
 export function SearchResults({ filters }: { filters: SearchFilters }) {
   const navigate = useNavigate({ from: "/search" });
   const [compareIds, setCompareIds] = useState<string[]>([]);
-  const [savedOnly, setSavedOnly] = useState(false);
+  const [favouritesOnly, setFavouritesOnly] = useState(false);
 
   const { data, isLoading, isFetching } = useFighterSearch(filters);
 
-  const { data: savedIds } = useQuery({
-    queryKey: ["saved-fighter-ids"],
+  const { data: favouriteIds } = useQuery({
+    queryKey: ["favourite-fighter-ids"],
     queryFn: async () => {
-      const { data: rows } = await supabase.from("matchmaker_favourites").select("fighter_id");
+      const { data: rows } = await supabase
+        .from("matchmaker_favourites")
+        .select("fighter_id")
+        .eq("is_saved", true);
       return new Set((rows ?? []).map(r => r.fighter_id as string));
     },
     staleTime: 30_000,
@@ -65,16 +68,16 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   const view = filters.view ?? "list";
 
   const exactFiltered = useMemo(
-    () => savedOnly && savedIds ? (data?.exact ?? []).filter(f => savedIds.has(f.id)) : (data?.exact ?? EMPTY_FIGHTERS),
-    [data?.exact, savedOnly, savedIds]
+    () => favouritesOnly && favouriteIds ? (data?.exact ?? []).filter(f => favouriteIds.has(f.id)) : (data?.exact ?? EMPTY_FIGHTERS),
+    [data?.exact, favouritesOnly, favouriteIds]
   );
   const nearFiltered = useMemo(
-    () => savedOnly && savedIds ? (data?.nearMatch ?? []).filter(f => savedIds.has(f.id)) : (data?.nearMatch ?? EMPTY_FIGHTERS),
-    [data?.nearMatch, savedOnly, savedIds]
+    () => favouritesOnly && favouriteIds ? (data?.nearMatch ?? []).filter(f => favouriteIds.has(f.id)) : (data?.nearMatch ?? EMPTY_FIGHTERS),
+    [data?.nearMatch, favouritesOnly, favouriteIds]
   );
-  const savedInResults = useMemo(
-    () => savedIds && data ? [...(data.exact ?? []), ...(data.nearMatch ?? [])].filter(f => savedIds.has(f.id)).length : 0,
-    [data, savedIds]
+  const favouritesInResults = useMemo(
+    () => favouriteIds && data ? [...(data.exact ?? []), ...(data.nearMatch ?? [])].filter(f => favouriteIds.has(f.id)).length : 0,
+    [data, favouriteIds]
   );
 
   const mapFighters = exactFiltered;
@@ -118,18 +121,22 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                 </span>
                 {isFetching && <Spinner size="sm" />}
               </div>
-              {savedInResults > 0 && (
+              {favouritesInResults > 0 && (
                 <button
-                  onClick={() => setSavedOnly(v => !v)}
+                  type="button"
+                  onClick={() => setFavouritesOnly(v => !v)}
                   className={cn(
                     "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all",
-                    savedOnly
+                    favouritesOnly
                       ? "border-primary/30 bg-primary/10 text-primary"
                       : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
                   )}
+                  title={favouritesOnly ? "Show all search results" : "Show favourites in these results only"}
                 >
-                  <Heart className={cn("h-3 w-3", savedOnly && "fill-current")} />
-                  {savedOnly ? `${exactFiltered.length + nearFiltered.length} saved` : `${savedInResults} saved`}
+                  <Heart className={cn("h-3 w-3", favouritesOnly && "fill-current")} />
+                  {favouritesOnly
+                    ? `${exactFiltered.length + nearFiltered.length} favourites`
+                    : `${favouritesInResults} ${favouritesInResults === 1 ? "favourite" : "favourites"}`}
                 </button>
               )}
             </>
@@ -175,7 +182,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                 highlightCountries={highlightCountries}
                 regionLabel={regionLabel}
                 regionFilterKey={regionFilterKey}
-                savedFighterIds={savedIds}
+                savedFighterIds={favouriteIds}
                 visible={view === "map"}
               />
             </div>
@@ -210,11 +217,11 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                   )}
 
                   {exactFiltered.length === 0 && nearFiltered.length === 0 && (
-                    savedOnly ? (
+                    favouritesOnly ? (
                       <EmptyState
                         icon={<Heart className="h-8 w-8" />}
-                        title="No saved fighters in these results"
-                        description="None of your saved fighters match the current search filters."
+                        title="No favourites in these results"
+                        description="None of your favourites match the current search filters."
                       />
                     ) : (
                       <EmptyResults />
@@ -223,7 +230,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                 </div>
               </div>
 
-              {totalPages > 1 && !savedOnly && (
+              {totalPages > 1 && !favouritesOnly && (
                 <div className="fc-list-pagination">
                   <Button
                     variant="outline"
