@@ -9,6 +9,7 @@ import { CompareBar } from "./compare-bar";
 import { FightersMap } from "./fighters-map";
 import { useFighterSearch } from "@/hooks/use-fighter-search";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { SearchResultsSkeletonList } from "@/components/loading/search-results-skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -160,7 +161,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
 
       {isLoading && view !== "map" ? (
         <div className="fc-list-shell relative flex min-h-0 flex-1 flex-col">
-          <SkeletonList />
+          <SearchResultsSkeletonList />
         </div>
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -303,31 +304,6 @@ function MapLoader() {
   return (
     <div className="flex h-full items-center justify-center">
       <Spinner size="lg" />
-    </div>
-  );
-}
-
-function SkeletonList() {
-  return (
-    <div className="fc-list-scroll scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-      <div className="fc-list-inner">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="fc-skeleton">
-            <div className="fc-skeleton-photo shimmer" />
-            <div className="fc-skeleton-main">
-              <div className="h-5 w-44 rounded-md shimmer" />
-              <div className="flex gap-2">
-                <div className="h-3 w-16 rounded-full shimmer" />
-                <div className="h-3 w-20 rounded-md shimmer" />
-              </div>
-            </div>
-            <div className="fc-skeleton-stats">
-              <div className="h-5 w-20 rounded-md shimmer" />
-              <div className="h-2.5 w-12 rounded-md shimmer" />
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

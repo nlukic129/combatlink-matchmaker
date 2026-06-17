@@ -5,7 +5,7 @@ import { Bell, CheckCheck, ChevronRight, Heart } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { AvailabilityBadge } from "@/components/ui/availability-badge";
-import { Spinner } from "@/components/ui/spinner";
+import { NotificationsLoader } from "@/components/loading/page-loaders";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { FighterDrawer } from "@/components/fighter-drawer/fighter-drawer";
@@ -142,13 +142,7 @@ function NotificationsPage() {
   const groups = useMemo(() => groupNotifications(items), [items]);
 
   if (isLoading) {
-    return (
-      <div className="notif-page">
-        <div className="notif-inner flex h-64 items-center justify-center">
-          <Spinner size="lg" />
-        </div>
-      </div>
-    );
+    return <NotificationsLoader />;
   }
 
   return (

@@ -36,7 +36,7 @@ function LoginPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   if (!isGuestReady(auth)) {
-    return <RouterPending />;
+    return <RouterPending variant="full" />;
   }
 
   async function onSubmit(values: FormValues) {

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { tagColor } from "@/lib/tag-utils";
 import { useCurrency } from "@/contexts/currency-context";
 import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
+import { FavouritesLoader } from "@/components/loading/page-loaders";
 
 export const Route = createFileRoute("/_app/favourites")({
   component: FavouritesPage,
@@ -71,26 +72,6 @@ function statusColor(s: string): string {
 type StatusFilter = "all" | "available" | "in_camp" | "unavailable";
 type SortBy = "recent" | "name" | "status";
 const STATUS_ORDER: Record<string, number> = { available: 0, in_camp: 1, unavailable: 2 };
-
-// ── Empty & loading states ─────────────────────────────────────────────────────
-
-function FavouritesLoading() {
-  return (
-    <div className="fav-page">
-      <div className="fav-inner">
-        <header className="fav-header">
-          <p className="cmp-eyebrow">Shortlist</p>
-          <h1 className="fav-title">Favourites</h1>
-        </header>
-        <div className="fav-loading-grid" aria-hidden>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="fav-loading-card" style={{ animationDelay: `${i * 60}ms` }} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function FavouritesEmpty() {
   return (
@@ -264,7 +245,7 @@ export function FavouritesPage() {
   }
 
   if (isLoading) {
-    return <FavouritesLoading />;
+    return <FavouritesLoader />;
   }
 
   if (favourites.length === 0) {

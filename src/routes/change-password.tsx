@@ -48,7 +48,7 @@ function ChangePasswordPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   if (!isAuthenticatedUserReady(auth)) {
-    return <RouterPending />;
+    return <RouterPending variant="full" />;
   }
 
   async function onSubmit(values: FormValues) {

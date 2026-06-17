@@ -19,7 +19,9 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,
-    defaultPendingComponent: RouterPending,
+    defaultPendingMs: 120,
+    defaultPendingMinMs: 280,
+    defaultPendingComponent: () => <RouterPending variant="route" />,
     defaultErrorComponent: RouterError,
     defaultViewTransition: navViewTransition,
   });

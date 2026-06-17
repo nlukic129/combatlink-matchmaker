@@ -95,6 +95,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
         {supabaseEnvScript ? (
           <script dangerouslySetInnerHTML={{ __html: supabaseEnvScript }} />
         ) : null}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `html,body{background:#12121a;color:#fafafa}`,
+          }}
+        />
       </head>
       <body suppressHydrationWarning>
         {children}
