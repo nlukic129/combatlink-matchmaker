@@ -59,18 +59,20 @@ export function FighterDrawer({ fighterId, activeSport, onClose: onCloseProp }: 
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  // Log profile view event
+  // Log profile view event — cancelled flag prevents double-insert from StrictMode
   useEffect(() => {
+    let cancelled = false;
     void (async () => {
       const { data } = await supabase.auth.getSession();
       const matchmakerId = data.session?.user?.id;
-      if (!matchmakerId) return;
+      if (!matchmakerId || cancelled) return;
       await supabase.from("matchmaking_logs").insert({
         matchmaker_id: matchmakerId,
         fighter_id: fighterId,
         event_type: "fighter_details_viewed",
       });
     })();
+    return () => { cancelled = true; };
   }, [fighterId]);
 
   return (
