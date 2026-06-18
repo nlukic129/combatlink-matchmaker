@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { resolveLocationCountries, CONTINENTS } from "@/lib/geo/countries";
 import { useNavigate } from "@tanstack/react-router";
-import { List, Map, ChevronLeft, ChevronRight, Users, SearchX, Heart } from "lucide-react";
+import { List, Map, ChevronLeft, ChevronRight, Users, SearchX, Heart, Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { FighterCard } from "./fighter-card";
@@ -13,10 +13,12 @@ import { SearchResultsSkeletonList } from "@/components/loading/search-results-s
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import type { SearchFighter } from "@/types/database";
 import type { SearchFilters } from "@/lib/search-schema";
 import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
+import { filterFightersByName } from "@/lib/fighter-name-filter";
 
 const EMPTY_FIGHTERS: SearchFighter[] = [];
 
@@ -26,6 +28,33 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   const navigate = useNavigate({ from: "/search" });
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
+  const nameQueryParam = filters.q?.trim() ?? "";
+  const [nameInput, setNameInput] = useState(nameQueryParam);
+  const nameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    setNameInput(nameQueryParam);
+  }, [nameQueryParam]);
+
+  useEffect(() => {
+    if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+    if (nameInput === nameQueryParam) return;
+
+    nameDebounceRef.current = setTimeout(() => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          q: nameInput.trim() || undefined,
+          page: 1,
+        }),
+        replace: true,
+      });
+    }, 250);
+
+    return () => {
+      if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+    };
+  }, [nameInput, nameQueryParam, navigate]);
 
   const { data, isLoading, isFetching } = useFighterSearch(filters);
 
@@ -43,9 +72,6 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
     },
     staleTime: 30_000,
   });
-
-  const page = filters.page ?? 1;
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
 
   function toggleCompare(id: string) {
     setCompareIds((prev) => {
@@ -80,13 +106,36 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
     () => favouritesOnly && favouriteIds ? (data?.nearMatch ?? []).filter(f => favouriteIds.has(f.id)) : (data?.nearMatch ?? EMPTY_FIGHTERS),
     [data?.nearMatch, favouritesOnly, favouriteIds]
   );
+
+  const nameFilteredExact = useMemo(
+    () => filterFightersByName(exactFiltered, nameQueryParam),
+    [exactFiltered, nameQueryParam]
+  );
+  const nameFilteredNear = useMemo(
+    () => filterFightersByName(nearFiltered, nameQueryParam),
+    [nearFiltered, nameQueryParam]
+  );
+
+  const isNameSearchActive = nameQueryParam.length > 0;
+  const listPage = filters.page ?? 1;
+  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const listExact = isNameSearchActive
+    ? nameFilteredExact.slice((listPage - 1) * PAGE_SIZE, listPage * PAGE_SIZE)
+    : exactFiltered;
+  const listNear = isNameSearchActive
+    ? (listPage === 1 ? nameFilteredNear : [])
+    : nearFiltered;
+  const resultTotal = isNameSearchActive ? nameFilteredExact.length : (data?.total ?? 0);
+  const resultTotalPages = isNameSearchActive
+    ? Math.max(1, Math.ceil(nameFilteredExact.length / PAGE_SIZE))
+    : totalPages;
   const favouritesInResults = useMemo(
     () => favouriteIds && data ? [...(data.exact ?? []), ...(data.nearMatch ?? [])].filter(f => favouriteIds.has(f.id)).length : 0,
     [data, favouriteIds]
   );
 
-  const mapFighters = exactFiltered;
-  const mapNearMatch = nearFiltered;
+  const mapFighters = nameFilteredExact;
+  const mapNearMatch = nameFilteredNear;
   const showInitialMapLoader = view === "map" && (isLoading || isFetching) && !data;
   const highlightCountries = useMemo(
     () => resolveLocationCountries(filters.countries, filters.continent) ?? undefined,
@@ -112,17 +161,20 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+      <div className="flex items-center gap-3 border-b border-border px-5 py-3.5">
+        <div className="flex min-w-0 shrink-0 items-center gap-3 text-sm text-muted-foreground">
           {isLoading ? (
             "Loading fighters…"
           ) : data ? (
             <>
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                <Users className="h-4 w-4 shrink-0" />
                 <span>
-                  <span className="font-semibold text-foreground">{data.total.toLocaleString()}</span>
+                  <span className="font-semibold text-foreground">{resultTotal.toLocaleString()}</span>
                   {" "}fighters
+                  {isNameSearchActive && data.total !== resultTotal && (
+                    <span className="text-muted-foreground/80"> of {data.total.toLocaleString()}</span>
+                  )}
                 </span>
                 {isFetching && <Spinner size="sm" />}
               </div>
@@ -140,12 +192,35 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                 >
                   <Heart className={cn("h-3 w-3", favouritesOnly && "fill-current")} />
                   {favouritesOnly
-                    ? `${exactFiltered.length + nearFiltered.length} favourites`
+                    ? `${nameFilteredExact.length + nameFilteredNear.length} favourites`
                     : `${favouritesInResults} ${favouritesInResults === 1 ? "favourite" : "favourites"}`}
                 </button>
               )}
             </>
           ) : null}
+        </div>
+
+        <div className="relative mx-1 min-w-0 flex-1 max-w-md">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder="Search by name or nickname…"
+            aria-label="Search fighters by name or nickname"
+            role="searchbox"
+            className="h-8 pl-8 pr-8 text-sm"
+          />
+          {nameInput && (
+            <button
+              type="button"
+              onClick={() => setNameInput("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="Clear name search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
 
         <SegmentedControl
@@ -197,7 +272,7 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
             <div className="fc-list-shell absolute inset-0 z-10 flex min-h-0 flex-col bg-background">
               <div className="fc-list-scroll scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <div className="fc-list-inner">
-                  {exactFiltered.map((f) => (
+                  {listExact.map((f) => (
                     <FighterCard
                       key={f.id}
                       fighter={f}
@@ -206,10 +281,10 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                     />
                   ))}
 
-                  {nearFiltered.length > 0 && (
+                  {listNear.length > 0 && (
                     <>
-                      <NearMatchDivider count={nearFiltered.length} />
-                      {nearFiltered.map((f) => (
+                      <NearMatchDivider count={listNear.length} />
+                      {listNear.map((f) => (
                         <FighterCard
                           key={f.id}
                           fighter={f}
@@ -221,12 +296,18 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                     </>
                   )}
 
-                  {exactFiltered.length === 0 && nearFiltered.length === 0 && (
+                  {listExact.length === 0 && listNear.length === 0 && (
                     favouritesOnly ? (
                       <EmptyState
                         icon={<Heart className="h-8 w-8" />}
                         title="No favourites in these results"
                         description="None of your favourites match the current search filters."
+                      />
+                    ) : isNameSearchActive ? (
+                      <EmptyState
+                        icon={<SearchX className="h-8 w-8" />}
+                        title="No fighters match that name"
+                        description={`No results for "${nameQueryParam}". Try a different spelling or clear the search.`}
                       />
                     ) : (
                       <EmptyResults />
@@ -235,25 +316,25 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
                 </div>
               </div>
 
-              {totalPages > 1 && !favouritesOnly && (
+              {resultTotalPages > 1 && !favouritesOnly && (
                 <div className="fc-list-pagination">
                   <Button
                     variant="outline"
                     size="icon-sm"
-                    onClick={() => setPage(page - 1)}
-                    disabled={page <= 1}
+                    onClick={() => setPage(listPage - 1)}
+                    disabled={listPage <= 1}
                     aria-label="Previous page"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                   <span className="text-sm text-muted-foreground">
-                    Page <span className="font-medium text-foreground">{page}</span> of {totalPages}
+                    Page <span className="font-medium text-foreground">{listPage}</span> of {resultTotalPages}
                   </span>
                   <Button
                     variant="outline"
                     size="icon-sm"
-                    onClick={() => setPage(page + 1)}
-                    disabled={page >= totalPages}
+                    onClick={() => setPage(listPage + 1)}
+                    disabled={listPage >= resultTotalPages}
                     aria-label="Next page"
                   >
                     <ChevronRight className="h-4 w-4" />

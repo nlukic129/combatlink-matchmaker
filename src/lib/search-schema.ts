@@ -42,6 +42,8 @@ export const searchSchema = z.object({
   originCountries: coercedOptionalStringArray,
   view: z.enum(["list", "map"]).optional().default("list"),
   page: coercedPage,
+  /** Free-text filter on fighter name or nickname (client-side over full result set). */
+  q: z.string().optional(),
 });
 
 export type SearchFilters = z.infer<typeof searchSchema>;

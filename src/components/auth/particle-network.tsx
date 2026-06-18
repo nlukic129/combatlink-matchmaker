@@ -242,5 +242,11 @@ export function ParticleNetwork() {
     };
   }, []);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <div
+      ref={containerRef}
+      className="pointer-events-none absolute inset-0"
+      aria-hidden
+    />
+  );
 }

@@ -35,6 +35,17 @@ function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
+  const submitLogin = handleSubmit(onSubmit);
+
+  function onFormKeyDown(e: React.KeyboardEvent<HTMLFormElement>) {
+    if (e.key !== "Enter" || isSubmitting) return;
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.tagName === "BUTTON" && (target as HTMLButtonElement).type === "button") return;
+    e.preventDefault();
+    void submitLogin();
+  }
+
   if (!isGuestReady(auth)) {
     return <RouterPending variant="full" />;
   }
@@ -111,12 +122,14 @@ function LoginPage() {
             <p className="mt-0.5 text-sm text-muted-foreground">Sign in to your matchmaker account</p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+          <form onSubmit={submitLogin} onKeyDown={onFormKeyDown} className="space-y-5">
             <Field label="Email" htmlFor="email" error={errors.email?.message}>
               <Input
                 id="email"
                 type="email"
                 autoComplete="email"
+                autoFocus
+                enterKeyHint="next"
                 placeholder="you@example.com"
                 error={!!errors.email}
                 {...register("email")}
@@ -129,6 +142,7 @@ function LoginPage() {
                   id="password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
+                  enterKeyHint="go"
                   placeholder="••••••••"
                   error={!!errors.password}
                   className="pr-10"

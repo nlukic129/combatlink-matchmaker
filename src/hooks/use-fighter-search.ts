@@ -21,11 +21,15 @@ type SearchResult = {
  * - `view`    — determines fetch strategy internally, not search criteria
  * - `page`    — for map queries: always page 1; list queries include it
  */
+function hasNameQuery(filters: SearchFilters) {
+  return !!filters.q?.trim();
+}
+
 function makeQueryKey(filters: SearchFilters) {
   const { fighter: _f, view, page, ...criteria } = filters;
-  if (view === "map") {
-    // Map always fetches all results (page 1, MAP_PAGE_SIZE) — page is irrelevant
-    return ["fighters-search", "map", criteria] as const;
+  if (view === "map" || hasNameQuery(filters)) {
+    // Map and name search fetch the full result set — page is applied client-side
+    return ["fighters-search", hasNameQuery(filters) ? "name" : "map", criteria] as const;
   }
   // List is paginated — page is part of the cache key
   return ["fighters-search", "list", { ...criteria, page }] as const;
@@ -46,6 +50,7 @@ export function useFighterSearch(filters: SearchFilters) {
 
 function buildRpcArgs(filters: SearchFilters, nearMatch: boolean) {
   const isMapView = filters.view === "map";
+  const fetchAll = isMapView || hasNameQuery(filters);
   const locationCountries = resolveLocationCountries(filters.countries, filters.continent);
 
   return {
@@ -76,14 +81,15 @@ function buildRpcArgs(filters: SearchFilters, nearMatch: boolean) {
     p_nationalities:    filters.nationalities?.length ? filters.nationalities : null,
     p_origin_countries: filters.originCountries?.length ? filters.originCountries : null,
     p_near_match:       nearMatch,
-    p_page:             isMapView ? 1 : (filters.page ?? 1),
-    p_page_size:        isMapView ? MAP_PAGE_SIZE : LIST_PAGE_SIZE,
+    p_page:             fetchAll ? 1 : (filters.page ?? 1),
+    p_page_size:        fetchAll ? MAP_PAGE_SIZE : LIST_PAGE_SIZE,
   };
 }
 
 async function fetchFighters(filters: SearchFilters): Promise<SearchResult> {
   const isMapView = filters.view === "map";
-  const page = isMapView ? 1 : (filters.page ?? 1);
+  const fetchAll = isMapView || hasNameQuery(filters);
+  const page = fetchAll ? 1 : (filters.page ?? 1);
 
   // Exact matches
   const { data: exactData, error } = await supabase.rpc(
@@ -112,7 +118,7 @@ async function fetchFighters(filters: SearchFilters): Promise<SearchResult> {
     filters.continent ||
     filters.originCountries?.length;
 
-  if (hasAnyFilter && (isMapView || page === 1)) {
+  if (hasAnyFilter && (fetchAll || page === 1)) {
     const exactIds = exact.map((f) => f.id);
 
     const { data: nearData } = await supabase.rpc(
