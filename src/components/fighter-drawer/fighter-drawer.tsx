@@ -59,6 +59,19 @@ export function FighterDrawer({ fighterId, activeSport, onClose: onCloseProp }: 
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Log profile view event
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      const matchmakerId = data.session?.user?.id;
+      if (!matchmakerId) return;
+      void supabase.from("matchmaking_logs").insert({
+        matchmaker_id: matchmakerId,
+        fighter_id: fighterId,
+        event_type: "fighter_details_viewed",
+      });
+    });
+  }, [fighterId]);
+
   return (
     <>
       {/* Backdrop */}
