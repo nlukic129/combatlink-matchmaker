@@ -86,17 +86,6 @@ function buildRpcArgs(filters: SearchFilters, nearMatch: boolean) {
   };
 }
 
-async function logImpressions(matchmakerId: string, fighterIds: string[]) {
-  if (!fighterIds.length) return;
-  await supabase.from("matchmaking_logs").insert(
-    fighterIds.map((fighter_id) => ({
-      matchmaker_id: matchmakerId,
-      fighter_id,
-      event_type: "fighter_presented" as const,
-    }))
-  );
-}
-
 async function fetchFighters(filters: SearchFilters): Promise<SearchResult> {
   const isMapView = filters.view === "map";
   const fetchAll = isMapView || hasNameQuery(filters);
@@ -140,19 +129,6 @@ async function fetchFighters(filters: SearchFilters): Promise<SearchResult> {
     nearMatch = ((nearData ?? []) as (SearchFighter & { total_count: number })[]).filter(
       (f) => !exactIds.includes(f.id)
     );
-  }
-
-  // Log impressions for list and name-search views (skip map — too many rows)
-  if (!isMapView) {
-    const { data: session } = await supabase.auth.getSession();
-    const matchmakerId = session?.session?.user?.id;
-    if (matchmakerId) {
-      const presented = [
-        ...exact.map((f) => f.id),
-        ...nearMatch.map((f) => f.id),
-      ];
-      void logImpressions(matchmakerId, presented);
-    }
   }
 
   return {

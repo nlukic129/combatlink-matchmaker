@@ -19,6 +19,7 @@ import type { SearchFighter } from "@/types/database";
 import type { SearchFilters } from "@/lib/search-schema";
 import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
 import { filterFightersByName } from "@/lib/fighter-name-filter";
+import { logFighterPresented } from "@/lib/matchmaking-log";
 
 const EMPTY_FIGHTERS: SearchFighter[] = [];
 
@@ -125,6 +126,31 @@ export function SearchResults({ filters }: { filters: SearchFilters }) {
   const listNear = isNameSearchActive
     ? (listPage === 1 ? nameFilteredNear : [])
     : nearFiltered;
+
+  const displayedFighterIds = useMemo(() => {
+    if (view === "map") return [];
+    const exact = isNameSearchActive
+      ? nameFilteredExact.slice((listPage - 1) * PAGE_SIZE, listPage * PAGE_SIZE)
+      : exactFiltered;
+    const near = isNameSearchActive
+      ? (listPage === 1 ? nameFilteredNear : [])
+      : nearFiltered;
+    return [...exact.map((f) => f.id), ...near.map((f) => f.id)];
+  }, [
+    view,
+    isNameSearchActive,
+    listPage,
+    exactFiltered,
+    nearFiltered,
+    nameFilteredExact,
+    nameFilteredNear,
+  ]);
+
+  useEffect(() => {
+    if (view === "map" || isLoading || !data || displayedFighterIds.length === 0) return;
+    void logFighterPresented(displayedFighterIds);
+  }, [view, isLoading, data, displayedFighterIds]);
+
   const resultTotal = isNameSearchActive ? nameFilteredExact.length : (data?.total ?? 0);
   const resultTotalPages = isNameSearchActive
     ? Math.max(1, Math.ceil(nameFilteredExact.length / PAGE_SIZE))
