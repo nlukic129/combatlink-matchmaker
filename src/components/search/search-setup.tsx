@@ -16,6 +16,8 @@ const GENDERS = [
   { value: "female" as const, label: "Female" },
 ];
 
+const PRIMARY_SPORT_SLUGS = new Set(["mma", "boxing", "kickboxing"]);
+
 export function SearchSetup({ params }: { params: SearchSetupParams }) {
   const navigate = useNavigate({ from: "/search/setup" });
   const { data: sports = [], isLoading: sportsLoading } = useSportsCatalog();
@@ -32,6 +34,9 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
 
   const readyForWeights = !!sport && !!gender;
   const canSearch = readyForWeights;
+
+  const primarySports = sports.filter((s) => PRIMARY_SPORT_SLUGS.has(s.slug));
+  const otherSports = sports.filter((s) => !PRIMARY_SPORT_SLUGS.has(s.slug));
 
   const { data: classes = [], isLoading: weightsLoading } = useQuery({
     queryKey: ["weight-classes", sport, gender],
@@ -98,17 +103,14 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
         </div>
 
         {/* Form content */}
-        <div className="relative z-10 w-full lg:w-[420px] lg:pl-10 xl:w-[460px] xl:pl-12">
+        <div className="relative z-10 w-full lg:w-[460px] lg:pl-10 xl:w-[500px] xl:pl-12">
 
-          <header className="search-setup-header mb-10 lg:mb-12">
+          <header className="search-setup-header mb-8 lg:mb-10">
             <p className="search-setup-eyebrow">Global Matchmaking</p>
             <h1 className="search-setup-title mt-3">
               FIND YOUR<br />
               <span className="text-primary">FIGHTER</span>
             </h1>
-            <p className="mt-4 max-w-[28ch] text-sm leading-relaxed text-muted-foreground">
-              Select sport and gender to search across the global fighter network.
-            </p>
           </header>
 
           <div className="search-setup-form space-y-6">
@@ -116,48 +118,38 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
             {/* Step 1: Sport */}
             <section>
               <SectionLabel title="Sport" done={!!sport} />
-              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="mt-3 space-y-3">
                 {sportsLoading ? (
-                  <p className="col-span-full text-xs text-muted-foreground">Loading sports…</p>
-                ) : sports.map(({ slug, label }) => {
-                  const active = sport === slug;
-                  const mark = sportMark(slug, label);
-                  return (
-                    <button
-                      key={slug}
-                      type="button"
-                      onClick={() => selectSport(slug)}
-                      className={cn(
-                        "search-setup-option relative flex flex-col items-center gap-2 rounded-xl border py-4 transition-all duration-200",
-                        active
-                          ? "border-primary/50 bg-primary/10 ring-1 ring-primary/25 [box-shadow:0_0_32px_oklch(0.55_0.24_25/20%),inset_0_0_0_1px_oklch(0.55_0.24_25/12%)]"
-                          : "border-white/[0.07] bg-white/[0.04] hover:border-primary/25 hover:bg-primary/[0.07]"
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "font-display text-3xl leading-none tracking-widest",
-                          active ? "text-primary" : "text-foreground/60"
-                        )}
-                      >
-                        {mark}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-[10px] font-semibold uppercase tracking-[0.12em]",
-                          active ? "text-foreground" : "text-muted-foreground"
-                        )}
-                      >
-                        {label}
-                      </span>
-                      {active && (
-                        <span className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary [box-shadow:0_0_10px_oklch(0.55_0.24_25/55%)]">
-                          <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
+                  <p className="text-xs text-muted-foreground">Loading sports…</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      {primarySports.map(({ slug, label }) => (
+                        <SportOption
+                          key={slug}
+                          slug={slug}
+                          label={label}
+                          active={sport === slug}
+                          onSelect={() => selectSport(slug)}
+                        />
+                      ))}
+                    </div>
+                    {otherSports.length > 0 && (
+                      <div className="grid grid-cols-1 gap-3">
+                        {otherSports.map(({ slug, label }) => (
+                          <SportOption
+                            key={slug}
+                            slug={slug}
+                            label={label}
+                            active={sport === slug}
+                            onSelect={() => selectSport(slug)}
+                            wide
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </section>
 
@@ -252,6 +244,59 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
         Global fighter network
       </p>
     </div>
+  );
+}
+
+function SportOption({
+  slug,
+  label,
+  active,
+  onSelect,
+  wide = false,
+}: {
+  slug: string;
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+  wide?: boolean;
+}) {
+  const mark = sportMark(slug, label);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "search-setup-option relative flex flex-col items-center gap-2.5 rounded-xl border transition-all duration-200",
+        wide ? "px-6 py-5" : "px-3 py-5",
+        active
+          ? "border-primary/50 bg-primary/10 ring-1 ring-primary/25 [box-shadow:0_0_32px_oklch(0.55_0.24_25/20%),inset_0_0_0_1px_oklch(0.55_0.24_25/12%)]"
+          : "border-white/[0.07] bg-white/[0.04] hover:border-primary/25 hover:bg-primary/[0.07]"
+      )}
+    >
+      <span
+        className={cn(
+          "font-display text-3xl leading-none tracking-widest",
+          active ? "text-primary" : "text-foreground/60"
+        )}
+      >
+        {mark}
+      </span>
+      <span
+        className={cn(
+          "text-center text-[10px] font-semibold uppercase tracking-[0.12em]",
+          wide && "text-[11px] tracking-[0.1em]",
+          active ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        {label}
+      </span>
+      {active && (
+        <span className="absolute right-2.5 top-2.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary [box-shadow:0_0_10px_oklch(0.55_0.24_25/55%)]">
+          <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={3} />
+        </span>
+      )}
+    </button>
   );
 }
 

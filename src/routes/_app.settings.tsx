@@ -1,60 +1,60 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/auth-context";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Field } from "@/components/ui/field";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_app/settings")({
   component: SettingsPage,
 });
 
-const profileSchema = z.object({
-  first_name: z.string().min(1, "Required"),
-  last_name: z.string().optional(),
-  organization: z.string().optional(),
-});
-
-type ProfileValues = z.infer<typeof profileSchema>;
-
 function SettingsPage() {
   const { matchmaker } = useAuth();
   const navigate = useNavigate();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting, isDirty },
-  } = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
-    defaultValues: {
-      first_name: matchmaker?.first_name ?? "",
-      last_name: matchmaker?.last_name ?? "",
-      organization: matchmaker?.organization ?? "",
-    },
-  });
+  const displayName =
+    [matchmaker?.first_name, matchmaker?.last_name].filter(Boolean).join(" ") || "—";
 
-  async function onSubmit(values: ProfileValues) {
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [savingNotifications, setSavingNotifications] = useState(false);
+
+  useEffect(() => {
+    if (matchmaker) {
+      setEmailNotifications(matchmaker.email_notifications_enabled ?? true);
+    }
+  }, [matchmaker]);
+
+  async function toggleEmailNotifications(enabled: boolean) {
+    const previous = emailNotifications;
+    setEmailNotifications(enabled);
+    setSavingNotifications(true);
+
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      setEmailNotifications(previous);
+      setSavingNotifications(false);
+      return;
+    }
 
     const { error } = await supabase
       .from("matchmakers")
-      .update(values)
+      .update({ email_notifications_enabled: enabled })
       .eq("id", session.user.id);
 
+    setSavingNotifications(false);
+
     if (error) {
-      toast.error("Failed to update profile");
+      setEmailNotifications(previous);
+      toast.error("Failed to update notification preference");
       return;
     }
-    toast.success("Profile updated");
+
+    toast.success(enabled ? "Email notifications enabled" : "Email notifications disabled");
   }
 
   async function signOut() {
@@ -66,57 +66,21 @@ function SettingsPage() {
     <div className="mx-auto max-w-lg px-4 py-8 sm:px-6">
       <PageHeader
         title="Settings"
-        description="Manage your matchmaker profile and account."
+        description="Manage your account security and notification preferences."
       />
 
       <div className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Profile</CardTitle>
-            <CardDescription>Your public matchmaker information.</CardDescription>
+            <CardDescription>
+              Your name and organization are set by CombatLink staff at registration.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="First name" error={errors.first_name?.message}>
-                  <Input
-                    {...register("first_name")}
-                    error={!!errors.first_name}
-                    autoComplete="given-name"
-                  />
-                </Field>
-                <Field label="Last name" error={errors.last_name?.message}>
-                  <Input
-                    {...register("last_name")}
-                    error={!!errors.last_name}
-                    autoComplete="family-name"
-                  />
-                </Field>
-              </div>
-              <Field label="Organization" error={errors.organization?.message}>
-                <Input
-                  {...register("organization")}
-                  error={!!errors.organization}
-                  autoComplete="organization"
-                />
-              </Field>
-
-              <p className="text-sm text-muted-foreground">
-                Email:{" "}
-                <span className="font-medium text-foreground">{matchmaker?.email ?? "—"}</span>
-              </p>
-
-              <Button type="submit" disabled={isSubmitting || !isDirty}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  "Save changes"
-                )}
-              </Button>
-            </form>
+          <CardContent className="space-y-4">
+            <ReadOnlyField label="Name" value={displayName} />
+            <ReadOnlyField label="Organization" value={matchmaker?.organization || "—"} />
+            <ReadOnlyField label="Email" value={matchmaker?.email ?? "—"} />
           </CardContent>
         </Card>
 
@@ -132,6 +96,36 @@ function SettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Notifications</CardTitle>
+            <CardDescription>
+              In-app alerts always appear in your notification inbox.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-medium text-foreground">Email notifications</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Get availability alerts, purse change updates, and video access approvals by email.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2 pt-0.5">
+                {savingNotifications && (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+                <Switch
+                  checked={emailNotifications}
+                  onCheckedChange={toggleEmailNotifications}
+                  disabled={savingNotifications || !matchmaker}
+                  aria-label="Email notifications"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="border-destructive/30">
           <CardHeader>
             <CardTitle>Sign out</CardTitle>
@@ -144,6 +138,17 @@ function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="rounded-lg border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 text-sm text-foreground">
+        {value}
+      </p>
     </div>
   );
 }

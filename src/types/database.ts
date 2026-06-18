@@ -233,6 +233,7 @@ export type Database = {
           organization: string | null;
           email: string | null;
           photo_url: string | null;
+          email_notifications_enabled: boolean;
           must_change_password: boolean;
           created_at: string;
           updated_at: string;
@@ -244,6 +245,7 @@ export type Database = {
           organization?: string | null;
           email?: string | null;
           photo_url?: string | null;
+          email_notifications_enabled?: boolean;
           must_change_password?: boolean;
         };
         Update: {
@@ -252,6 +254,7 @@ export type Database = {
           organization?: string | null;
           email?: string | null;
           photo_url?: string | null;
+          email_notifications_enabled?: boolean;
           must_change_password?: boolean;
         };
         Relationships: [];
