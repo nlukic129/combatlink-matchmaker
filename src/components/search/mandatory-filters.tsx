@@ -3,13 +3,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useSportsCatalog } from "@/hooks/use-sports-catalog";
 import type { SearchFilters } from "@/lib/search-schema";
-
-const SPORTS = [
-  { slug: "mma", label: "MMA" },
-  { slug: "boxing", label: "Boxing" },
-  { slug: "kickboxing", label: "Kickboxing" },
-] as const;
 
 const GENDERS = [
   { value: "male" as const, label: "Male" },
@@ -18,6 +13,7 @@ const GENDERS = [
 
 export function MandatoryFilters({ filters }: { filters: SearchFilters }) {
   const navigate = useNavigate({ from: "/search" });
+  const { data: sports = [] } = useSportsCatalog();
 
   function setSport(sport: string) {
     navigate({
@@ -80,7 +76,7 @@ export function MandatoryFilters({ filters }: { filters: SearchFilters }) {
           <FilterSectionLabel title="Sport" done={!!filters.sport} />
 
           <div className="flex items-center gap-1.5">
-            {SPORTS.map(({ slug, label }) => (
+            {sports.map(({ slug, label }) => (
               <FilterPill
                 key={slug}
                 active={filters.sport === slug}

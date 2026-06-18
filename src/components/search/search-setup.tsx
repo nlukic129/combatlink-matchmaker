@@ -5,15 +5,11 @@ import { ArrowRight, Check, Loader2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { searchLaunchViewTransition } from "@/lib/nav-transitions";
+import { sportMark } from "@/lib/sport-display";
+import { useSportsCatalog } from "@/hooks/use-sports-catalog";
 import { Button } from "@/components/ui/button";
 import { WireframeGlobe } from "@/components/search/wireframe-globe";
 import type { SearchSetupParams } from "@/lib/search-schema";
-
-const SPORTS = [
-  { slug: "mma", label: "MMA", mark: "MMA" },
-  { slug: "boxing", label: "Boxing", mark: "BOX" },
-  { slug: "kickboxing", label: "Kickboxing", mark: "KICK" },
-] as const;
 
 const GENDERS = [
   { value: "male" as const, label: "Male" },
@@ -22,6 +18,7 @@ const GENDERS = [
 
 export function SearchSetup({ params }: { params: SearchSetupParams }) {
   const navigate = useNavigate({ from: "/search/setup" });
+  const { data: sports = [], isLoading: sportsLoading } = useSportsCatalog();
 
   const [sport, setSport] = useState(params.sport ?? "");
   const [gender, setGender] = useState<"male" | "female" | "">(params.gender ?? "");
@@ -119,9 +116,12 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
             {/* Step 1: Sport */}
             <section>
               <SectionLabel title="Sport" done={!!sport} />
-              <div className="mt-3 grid grid-cols-3 gap-2.5">
-                {SPORTS.map(({ slug, label, mark }) => {
+              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                {sportsLoading ? (
+                  <p className="col-span-full text-xs text-muted-foreground">Loading sports…</p>
+                ) : sports.map(({ slug, label }) => {
                   const active = sport === slug;
+                  const mark = sportMark(slug, label);
                   return (
                     <button
                       key={slug}

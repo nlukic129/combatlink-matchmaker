@@ -20,6 +20,7 @@ import { SaveTagPopup, tagPopupPositionForAnchor } from "@/components/favourites
 import { saveFavourite, removeSavedFavourite } from "@/lib/favourite-mutations";
 import { isSavedFavourite } from "@/lib/favourites-schema";
 import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
+import { useSportLabel } from "@/hooks/use-sports-catalog";
 import type { Fighter } from "@/types/database";
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
@@ -36,15 +37,6 @@ export const Route = createFileRoute("/_app/compare")({
 });
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-const SPORT_LABELS: Record<string, string> = {
-  mma: "MMA", boxing: "Boxing", kickboxing: "Kickboxing",
-  muay_thai: "Muay Thai", wrestling: "Wrestling", bjj: "BJJ",
-  grappling: "Grappling", judo: "Judo", karate: "Karate", sambo: "Sambo",
-};
-function sportLabel(slug: string): string {
-  return SPORT_LABELS[slug.toLowerCase()] ?? slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g, " ");
-}
 
 function calcAge(dob: string | null): number | null {
   if (!dob) return null;
@@ -421,6 +413,7 @@ const SECTIONS: { id: SectionId; label: string }[] = [
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function ComparePage() {
+  const labelSport = useSportLabel();
   const { fighters: rawIds, sport, gender } = Route.useSearch();
   const navigate = useNavigate({ from: "/compare" });
   const [drawerFighterId, setDrawerFighterId] = useState<string | null>(null);
@@ -482,7 +475,7 @@ function ComparePage() {
             <h1 className="cmp-title">HEAD TO HEAD</h1>
             {sport && (
               <span className="cmp-sport-pill">
-                {sportLabel(sport)}
+                {labelSport(sport)}
                 {gender ? ` · ${gender === "female" ? "Women" : "Men"}` : ""}
               </span>
             )}
@@ -1191,8 +1184,8 @@ function MatchInsights({ left, right }: { left: FighterData; right: FighterData 
 
 // ── Comparison sections ────────────────────────────────────────────────────────
 
-function sectionTitle(id: SectionId, sport: string | undefined): string {
-  if (id === "record") return `Record${sport ? ` · ${sportLabel(sport)}` : ""}`;
+function sectionTitle(id: SectionId, sport: string | undefined, labelSport: (slug: string) => string): string {
+  if (id === "record") return `Record${sport ? ` · ${labelSport(sport)}` : ""}`;
   if (id === "history") return "Recent Fights";
   return SECTIONS.find((s) => s.id === id)?.label ?? id;
 }
@@ -1205,8 +1198,9 @@ function ComparisonSections({
   sport: string | undefined;
   activeSection: SectionId;
 }) {
+  const labelSport = useSportLabel();
   return (
-    <CmpSection id={activeSection} title={sectionTitle(activeSection, sport)}>
+    <CmpSection id={activeSection} title={sectionTitle(activeSection, sport, labelSport)}>
       {activeSection === "physical" && <PhysicalSection left={left} right={right} />}
       {activeSection === "record" && <RecordSection left={left} right={right} sport={sport} />}
       {activeSection === "booking" && <BookingSection left={left} right={right} />}
@@ -1686,6 +1680,7 @@ function MethodDuelPanel({
 }
 
 function RecordSection({ left, right, sport }: { left: FighterData; right: FighterData; sport: string | undefined }) {
+  const labelSport = useSportLabel();
   const lf = left.fighter!;
   const rf = right.fighter!;
   const ls = left.activeSport as AnyRow | null;
@@ -1703,7 +1698,7 @@ function RecordSection({ left, right, sport }: { left: FighterData; right: Fight
   const rAmateurTotal = rs ? rs.amateur_w + rs.amateur_l + rs.amateur_d : 0;
   const lRate = ls ? winRate(ls.pro_w, ls.pro_l, ls.pro_d) : null;
   const rRate = rs ? winRate(rs.pro_w, rs.pro_l, rs.pro_d) : null;
-  const sportTag = sport ? sportLabel(sport) : null;
+  const sportTag = sport ? labelSport(sport) : null;
   const lLevel = ls?.level ? (ls.level === "pro" ? "Pro" : "Amateur") : null;
   const rLevel = rs?.level ? (rs.level === "pro" ? "Pro" : "Amateur") : null;
 

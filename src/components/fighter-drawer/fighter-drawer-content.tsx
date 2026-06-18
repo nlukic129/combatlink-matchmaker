@@ -11,6 +11,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { saveFavourite, removeSavedFavourite, setNotifyWatch } from "@/lib/favourite-mutations";
 import { isSavedFavourite } from "@/lib/favourites-schema";
 import { useFavouritesSchema } from "@/hooks/use-favourites-schema";
+import { useSportLabel } from "@/hooks/use-sports-catalog";
 import type { Fighter } from "@/types/database";
 import { VideosTab } from "@/components/fighter-drawer/videos-tab";
 
@@ -87,13 +88,14 @@ function singleFighterBookingReadiness(fighter: Fighter): {
 
 function sportsInsight(
   sports: { sport: string; is_active?: boolean | null; pro_w: number; pro_l: number; pro_d: number }[],
-  activeSport?: string | null,
+  activeSport: string | null | undefined,
+  labelSport: (slug: string) => string,
 ): string {
   const active = sports.filter(s => s.is_active);
   const featured = activeSport ? sports.find(s => s.sport === activeSport) : sports[0];
   if (featured) {
     const total = featured.pro_w + featured.pro_l + featured.pro_d;
-    const name = sportDisplayLabel(featured.sport);
+    const name = labelSport(featured.sport);
     if (total > 0) {
       const rate = Math.round((featured.pro_w / total) * 100);
       return `${name} pro record ${featured.pro_w}–${featured.pro_l}–${featured.pro_d} (${rate}% win rate).`;
@@ -444,6 +446,7 @@ function BookingCard({ icon, label, value, detail, highlight, delayMs }: {
 // ── Sports tab ────────────────────────────────────────────────────────────────
 
 function SportsTab({ fighterId, activeSport }: { fighterId: string; activeSport?: string | null }) {
+  const labelSport = useSportLabel();
   const { data: sports = [], isLoading } = useQuery({
     queryKey: ["fighter-sports", fighterId],
     queryFn: async () => {
@@ -467,7 +470,7 @@ function SportsTab({ fighterId, activeSport }: { fighterId: string; activeSport?
     <div className="fd-dossier">
       <div className="cmp-history-insight">
         <span className="cmp-history-insight-dot" aria-hidden />
-        <p className="cmp-history-insight-text">{sportsInsight(sports, activeSport)}</p>
+        <p className="cmp-history-insight-text">{sportsInsight(sports, activeSport, labelSport)}</p>
       </div>
 
       {featured && <SportCardFeatured sport={featured} delayMs={0} />}
@@ -523,7 +526,8 @@ function RecordBlocks({ levels, size = "normal" }: { levels: { key: string; labe
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function SportCardFeatured({ sport, delayMs }: { sport: any; delayMs: number }) {
-  const name = sportDisplayLabel(sport.sport);
+  const labelSport = useSportLabel();
+  const name = labelSport(sport.sport);
   const levels = [
     { key: "pro",     label: "Pro",     w: sport.pro_w,     l: sport.pro_l,     d: sport.pro_d     },
     { key: "amateur", label: "Amateur", w: sport.amateur_w, l: sport.amateur_l, d: sport.amateur_d },
@@ -586,7 +590,8 @@ function SportCardFeatured({ sport, delayMs }: { sport: any; delayMs: number }) 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function SportCardMini({ sport, delayMs }: { sport: any; delayMs: number }) {
-  const name = sportDisplayLabel(sport.sport);
+  const labelSport = useSportLabel();
+  const name = labelSport(sport.sport);
   const levels = [
     { key: "pro",     label: "Pro",     w: sport.pro_w,     l: sport.pro_l,     d: sport.pro_d     },
     { key: "amateur", label: "Amateur", w: sport.amateur_w, l: sport.amateur_l, d: sport.amateur_d },
@@ -610,6 +615,7 @@ function SportCardMini({ sport, delayMs }: { sport: any; delayMs: number }) {
 // ── Fights tab ────────────────────────────────────────────────────────────────
 
 function FightsTab({ fighterId, activeSport }: { fighterId: string; activeSport?: string | null }) {
+  const labelSport = useSportLabel();
   const [sportFilter, setSportFilter] = useState(activeSport ?? "all");
   const [levelFilter, setLevelFilter] = useState("all");
 
@@ -645,7 +651,7 @@ function FightsTab({ fighterId, activeSport }: { fighterId: string; activeSport?
   const showSportFilters = sports.length > 1;
   const showLevelFilters = levels.length > 1;
   const showToolbar = showSportFilters || showLevelFilters;
-  const currentSportLabel = sportFilter !== "all" ? sportDisplayLabel(sportFilter) : null;
+  const currentSportLabel = sportFilter !== "all" ? labelSport(sportFilter) : null;
   const currentLevelNote  = levelFilter !== "all" ? (LEVEL_DISPLAY[levelFilter] ?? levelFilter) : null;
 
   if (isLoading) return <TabLoader />;
@@ -664,7 +670,7 @@ function FightsTab({ fighterId, activeSport }: { fighterId: string; activeSport?
             <FightsFilterGroup label="Sport">
               <FilterChip active={sportFilter === "all"} onClick={() => setSportFilter("all")} label="All" />
               {sports.map(slug => (
-                <FilterChip key={slug} active={sportFilter === slug} onClick={() => setSportFilter(slug)} label={sportDisplayLabel(slug)} />
+                <FilterChip key={slug} active={sportFilter === slug} onClick={() => setSportFilter(slug)} label={labelSport(slug)} />
               ))}
             </FightsFilterGroup>
           )}
@@ -827,14 +833,7 @@ const FINISH_LABELS: Record<FinishBucket, string> = {
 };
 const FINISH_ORDER: FinishBucket[] = ["ko", "sub", "dec", "dq", "other"];
 
-const SPORT_LABELS: Record<string, string> = {
-  mma: "MMA", boxing: "Boxing", kickboxing: "Kickboxing",
-  muay_thai: "Muay Thai", wrestling: "Wrestling", bjj: "BJJ",
-  grappling: "Grappling", judo: "Judo", karate: "Karate", sambo: "Sambo",
-};
-function sportDisplayLabel(slug: string): string {
-  return SPORT_LABELS[slug.toLowerCase()] ?? slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g, " ");
-}
+const LEVEL_DISPLAY: Record<string, string> = { pro: "Professional", amateur: "Amateur", other: "Other" };
 
 function normalizeLevel(level: string | null | undefined): "pro" | "amateur" | "other" {
   if (!level) return "other";
@@ -843,7 +842,6 @@ function normalizeLevel(level: string | null | undefined): "pro" | "amateur" | "
   if (l === "amateur" || l === "am") return "amateur";
   return "other";
 }
-const LEVEL_DISPLAY: Record<string, string> = { pro: "Professional", amateur: "Amateur", other: "Other" };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseFightOutcome(result: any): FightOutcome {
@@ -1133,6 +1131,7 @@ function FightInsights({ fights, sportLabel, levelNote }: {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function FightRow({ fight, isLast }: { fight: any; isLast: boolean }) {
+  const labelSport = useSportLabel();
   const [expanded, setExpanded] = useState(false);
   const meta = resultMeta(fight.result);
   const method = methodLabel(fight.method);
@@ -1191,7 +1190,7 @@ function FightRow({ fight, isLast }: { fight: any; isLast: boolean }) {
         {expanded && hasDetails && (
           <div className="fd-fight-expand-panel fd-detail-grid">
             {fight.event_name    && <DetailCell label="Event"           value={fight.event_name} />}
-            {fight.sport         && <DetailCell label="Sport"           value={sportDisplayLabel(fight.sport)} />}
+            {fight.sport         && <DetailCell label="Sport"           value={labelSport(fight.sport)} />}
             {fight.billing       && <DetailCell label="Billing"         value={fight.billing} />}
             {fight.weight_class  && <DetailCell label="Weight class"    value={fight.weight_class} />}
             {roundStr            && <DetailCell label="Ended"           value={roundStr} />}
