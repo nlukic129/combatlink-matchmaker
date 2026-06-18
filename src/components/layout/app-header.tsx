@@ -115,6 +115,7 @@ export function AppHeader() {
           <UserMenu
             displayName={displayName}
             organization={matchmaker?.organization}
+            photoUrl={matchmaker?.photo_url}
             initials={initials}
             onSignOut={signOut}
           />
@@ -127,11 +128,13 @@ export function AppHeader() {
 function UserMenu({
   displayName,
   organization,
+  photoUrl,
   initials,
   onSignOut,
 }: {
   displayName: string;
   organization?: string | null;
+  photoUrl?: string | null;
   initials: string;
   onSignOut: () => void;
 }) {
@@ -143,7 +146,7 @@ function UserMenu({
           className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           aria-label="Account menu"
         >
-          <Avatar src={null} alt={displayName} fallback={initials} size="sm" />
+          <Avatar src={photoUrl} alt={displayName} fallback={initials} size="sm" />
           <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground/70 sm:block" aria-hidden />
         </button>
       </DropdownMenuTrigger>
