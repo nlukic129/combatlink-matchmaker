@@ -3732,13 +3732,54 @@
   }
 
   .fd-empty {
-    padding: 32px 20px;
+    padding: 40px 24px;
     text-align: center;
-    font-size: 0.8125rem;
-    color: oklch(0.48 0.012 270);
+    font-size: 0.875rem;
+    color: oklch(0.58 0.012 270);
     border-radius: 1rem;
-    border: 1px solid oklch(1 0 0 / 7%);
+    border: 1px dashed oklch(1 0 0 / 12%);
     background: oklch(1 0 0 / 2%);
+  }
+
+  .fd-tab-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 3rem 1.5rem;
+    text-align: center;
+    border-radius: 1rem;
+    border: 1px dashed oklch(1 0 0 / 12%);
+    background: oklch(1 0 0 / 2%);
+    color: oklch(0.48 0.012 270);
+  }
+
+  .fd-tab-empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: oklch(1 0 0 / 5%);
+    border: 1px solid oklch(1 0 0 / 8%);
+    color: oklch(0.55 0.012 270);
+    flex-shrink: 0;
+  }
+
+  .fd-tab-empty-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: oklch(0.72 0.012 270);
+    letter-spacing: -0.01em;
+  }
+
+  .fd-tab-empty-desc {
+    font-size: 0.8125rem;
+    color: oklch(0.5 0.012 270);
+    line-height: 1.5;
+    max-width: 22rem;
   }
 
   /* Highlight badges */
@@ -4924,9 +4965,9 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: oklch(0.52 0.014 270);
-  background: transparent;
-  border: 1px solid transparent;
+  color: oklch(0.62 0.014 270);
+  background: oklch(1 0 0 / 3%);
+  border: 1px solid oklch(1 0 0 / 8%);
   border-radius: 9999px;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
   cursor: pointer;
@@ -4934,14 +4975,16 @@
 }
 
 .cmp-section-tab:hover {
-  color: oklch(0.78 0.014 270);
-  background: oklch(1 0 0 / 4%);
+  color: oklch(0.88 0.014 270);
+  background: oklch(1 0 0 / 7%);
+  border-color: oklch(1 0 0 / 14%);
 }
 
 .cmp-section-tab--active {
   color: oklch(0.97 0.004 270);
-  background: oklch(1 0 0 / 6%);
-  border-color: oklch(1 0 0 / 10%);
+  background: oklch(0.55 0.24 25 / 16%);
+  border-color: oklch(0.55 0.24 25 / 40%);
+  box-shadow: 0 0 0 1px oklch(0.55 0.24 25 / 12%) inset;
 }
 
 /* ── Comparison grid ─────────────────────────────────── */

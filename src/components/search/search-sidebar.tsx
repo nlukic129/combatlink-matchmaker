@@ -976,12 +976,12 @@ export function SearchSidebar({
 
   if (disabled) {
     return (
-      <aside className="hidden w-[300px] shrink-0 border-r border-white/[0.06] bg-sidebar/40 xl:flex flex-col" />
+      <aside className="hidden w-[300px] shrink-0 border-r border-white/[0.06] bg-sidebar/40 lg:flex flex-col" />
     );
   }
 
   return (
-    <aside className="hidden w-[300px] shrink-0 flex-col overflow-y-auto border-r border-white/[0.06] bg-sidebar/40 scrollbar-thin xl:flex">
+    <aside className="hidden w-[300px] shrink-0 flex-col overflow-y-auto border-r border-white/[0.06] bg-sidebar/40 scrollbar-thin lg:flex">
 
       {/* Header */}
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.06] bg-sidebar/90 px-5 py-3.5 backdrop-blur-sm">

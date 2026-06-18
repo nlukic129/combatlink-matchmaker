@@ -1421,5 +1421,9 @@ function TabLoader() {
 }
 
 function TabEmpty({ label }: { label: string }) {
-  return <div className="fd-empty">{label}</div>;
+  return (
+    <div className="fd-empty">
+      {label}
+    </div>
+  );
 }

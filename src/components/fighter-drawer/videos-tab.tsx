@@ -47,11 +47,16 @@ function TabLoader() {
   );
 }
 
-function TabEmpty({ label }: { label: string }) {
+function TabEmpty() {
   return (
     <div className="fd-tab-empty">
-      <Video size={20} />
-      <p>{label}</p>
+      <div className="fd-tab-empty-icon">
+        <Video size={20} />
+      </div>
+      <p className="fd-tab-empty-title">No videos uploaded</p>
+      <p className="fd-tab-empty-desc">
+        This fighter hasn't uploaded any fight footage yet. Once they do, public clips will appear here automatically.
+      </p>
     </div>
   );
 }
@@ -293,7 +298,7 @@ export function VideosTab({ fighterId, matchmakerId }: { fighterId: string; matc
   const accessStatus = (accessRequest?.status as AccessStatus) ?? null;
   const canViewPrivate = accessStatus === "approved";
 
-  if (!videos.length) return <TabEmpty label="No videos uploaded" />;
+  if (!videos.length) return <TabEmpty />;
 
   return (
     <div className="fd-dossier">
