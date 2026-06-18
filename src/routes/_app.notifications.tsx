@@ -26,11 +26,22 @@ type NotificationFighter = {
   availability_status: string;
 };
 
+type NotificationMetadata = {
+  // fighter_status_changed
+  old_status?: string;
+  new_status?: string;
+  // fighter_price_changed
+  tracked_purse_usd?: number;
+  new_purse_usd?: number;
+  pct_change?: number;
+};
+
 type NotificationRow = {
   id: number;
   type: string;
   read: boolean;
   created_at: string;
+  metadata: NotificationMetadata | null;
   fighters: NotificationFighter | NotificationFighter[] | null;
 };
 
@@ -41,21 +52,48 @@ function resolveFighter(row: NotificationRow): NotificationFighter | null {
   return Array.isArray(row.fighters) ? row.fighters[0] ?? null : row.fighters;
 }
 
-/**
- * Notifications in matchmaker_notifications:
- * - fighter_available — fighter with notify bell on became available
- * - video_access_approved — fighter approved your private video access request
- */
-function notificationCopy(type: string, fighter: NotificationFighter): {
-  headline: string;
-  subline: string;
-} {
+const STATUS_LABELS: Record<string, string> = {
+  available: "Available",
+  in_camp: "In Camp",
+  unavailable: "Unavailable",
+};
+
+function formatPurse(usd: number): string {
+  return `$${usd.toLocaleString("en-US")}`;
+}
+
+function notificationCopy(
+  type: string,
+  fighter: NotificationFighter,
+  metadata: NotificationMetadata | null,
+): { headline: string; subline: string } {
   const name = [fighter.first_name, fighter.last_name].filter(Boolean).join(" ");
 
   if (type === "fighter_available" || !type) {
     return {
       headline: `${name} is available for booking`,
       subline: "You enabled availability alerts for this fighter.",
+    };
+  }
+
+  if (type === "fighter_status_changed") {
+    const newLabel = STATUS_LABELS[metadata?.new_status ?? ""] ?? "Unknown";
+    const oldLabel = STATUS_LABELS[metadata?.old_status ?? ""] ?? "Unknown";
+    return {
+      headline: `${name} is now ${newLabel}`,
+      subline: `Status changed from ${oldLabel}.`,
+    };
+  }
+
+  if (type === "fighter_price_changed") {
+    const newPurse = metadata?.new_purse_usd != null ? formatPurse(metadata.new_purse_usd) : "—";
+    const oldPurse = metadata?.tracked_purse_usd != null ? formatPurse(metadata.tracked_purse_usd) : "—";
+    const pct = metadata?.pct_change;
+    const direction = pct != null && pct > 0 ? "up" : "down";
+    const pctStr = pct != null ? ` (${pct > 0 ? "+" : ""}${pct}%)` : "";
+    return {
+      headline: `${name} updated their fight purse`,
+      subline: `Now ${newPurse}${pctStr} — was ${oldPurse} when you started tracking them. Price went ${direction}.`,
     };
   }
 
@@ -100,7 +138,7 @@ function NotificationsPage() {
       const { data, error } = await supabase
         .from("matchmaker_notifications")
         .select(`
-          id, type, read, created_at,
+          id, type, read, created_at, metadata,
           fighters (
             id, first_name, last_name, nickname, photo_url, availability_status
           )
@@ -109,7 +147,7 @@ function NotificationsPage() {
         .limit(100);
 
       if (error) throw error;
-      return (data ?? []) as NotificationRow[];
+      return (data ?? []) as unknown as NotificationRow[];
     },
   });
 
@@ -153,7 +191,7 @@ function NotificationsPage() {
             <p className="cmp-eyebrow">Inbox</p>
             <h1 className="notif-title">Notifications</h1>
             <p className="notif-subtitle">
-              Availability alerts and video access updates from fighters you’re working with.
+              Status changes, price movements, and video access updates from fighters you’re tracking.
             </p>
           </div>
           {unreadCount > 0 && (
@@ -172,7 +210,7 @@ function NotificationsPage() {
         <div className="notif-insight">
           <span className="notif-insight-dot" aria-hidden />
           <p className="notif-insight-text">
-            Saving to favourites turns the bell on automatically. You can also enable the bell without saving — you’ll get an alert here (and by email) when their status switches to <strong>Available</strong>, or when a fighter approves your video access request.
+            Saving to favourites turns the bell on automatically. You can also enable the bell without saving — you’ll get an alert here (and by email) on every status change, when their fight purse moves more than 20% from when you started tracking them, or when a fighter approves your video access request.
           </p>
         </div>
 
@@ -189,7 +227,7 @@ function NotificationsPage() {
           <div className="notif-stat-divider" aria-hidden />
           <div className="notif-stat notif-stat--wide">
             <span className="notif-stat-lbl">Trigger</span>
-            <span className="notif-stat-hint">Availability · video access approvals</span>
+            <span className="notif-stat-hint">Status changes · price &gt;20% · video access</span>
           </div>
         </div>
 
@@ -200,7 +238,7 @@ function NotificationsPage() {
             </div>
             <h2 className="notif-empty-title">No notifications yet</h2>
             <p className="notif-empty-desc">
-              Enable the bell on a fighter profile, or request private video access — alerts will show up here.
+              Enable the bell on a fighter profile to get alerts when their status changes, their purse moves significantly, or they approve your video access request.
             </p>
             <Link to="/favourites" className="notif-empty-cta">
               <Heart className="h-4 w-4" />
@@ -267,7 +305,7 @@ function NotificationGroup({
         {items.map((n) => {
           const fighter = resolveFighter(n);
           if (!fighter) return null;
-          const copy = notificationCopy(n.type, fighter);
+          const copy = notificationCopy(n.type, fighter, n.metadata);
 
           return (
             <button
