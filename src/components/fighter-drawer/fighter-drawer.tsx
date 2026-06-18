@@ -61,15 +61,16 @@ export function FighterDrawer({ fighterId, activeSport, onClose: onCloseProp }: 
 
   // Log profile view event
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
       const matchmakerId = data.session?.user?.id;
       if (!matchmakerId) return;
-      void supabase.from("matchmaking_logs").insert({
+      await supabase.from("matchmaking_logs").insert({
         matchmaker_id: matchmakerId,
         fighter_id: fighterId,
         event_type: "fighter_details_viewed",
       });
-    });
+    })();
   }, [fighterId]);
 
   return (
