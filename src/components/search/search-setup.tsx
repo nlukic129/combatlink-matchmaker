@@ -95,7 +95,7 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
         overflow-visible at lg lets the absolute globe bleed beyond stage edges.
         Globe inside stage so right:-30px follows stage right edge (not viewport).
       */}
-      <div className="search-setup-stage relative z-10 mx-auto flex min-h-full w-full max-w-full flex-col justify-center overflow-y-auto overscroll-contain px-6 py-10 sm:px-10 sm:py-12 lg:max-w-[1020px] lg:overflow-visible lg:px-0 lg:py-0 xl:max-w-[1160px]">
+      <div className="search-setup-stage relative z-10 mx-auto flex min-h-full w-full max-w-full flex-col justify-center overflow-y-auto overscroll-contain px-6 py-6 sm:px-10 sm:py-8 lg:max-w-[1020px] lg:overflow-visible lg:px-0 lg:py-0 xl:max-w-[1160px]">
 
         {/* Globe — absolute within stage */}
         <div className="search-setup-globe-accent pointer-events-none absolute z-0" aria-hidden>
@@ -105,7 +105,7 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
         {/* Form content */}
         <div className="relative z-10 w-full lg:w-[460px] lg:pl-10 xl:w-[500px] xl:pl-12">
 
-          <header className="search-setup-header mb-8 lg:mb-10">
+          <header className="search-setup-header mb-5 lg:mb-6">
             <p className="search-setup-eyebrow">Global Matchmaking</p>
             <h1 className="search-setup-title mt-3">
               FIND YOUR<br />
@@ -113,17 +113,17 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
             </h1>
           </header>
 
-          <div className="search-setup-form space-y-6">
+          <div className="search-setup-form space-y-4">
 
             {/* Step 1: Sport */}
             <section>
               <SectionLabel title="Sport" done={!!sport} />
-              <div className="mt-3 space-y-3">
+              <div className="mt-2 space-y-2">
                 {sportsLoading ? (
                   <p className="text-xs text-muted-foreground">Loading sports…</p>
                 ) : (
                   <>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-2">
                       {primarySports.map(({ slug, label }) => (
                         <SportOption
                           key={slug}
@@ -135,7 +135,7 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
                       ))}
                     </div>
                     {otherSports.length > 0 && (
-                      <div className="grid grid-cols-1 gap-3">
+                      <div className="grid grid-cols-1 gap-2">
                         {otherSports.map(({ slug, label }) => (
                           <SportOption
                             key={slug}
@@ -161,7 +161,7 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
               )}
             >
               <SectionLabel title="Gender" done={!!gender} />
-              <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <div className="mt-2 grid grid-cols-2 gap-2">
                 {GENDERS.map(({ value, label }) => {
                   const active = gender === value;
                   return (
@@ -170,7 +170,7 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
                       type="button"
                       onClick={() => selectGender(value)}
                       className={cn(
-                        "search-setup-option rounded-xl border py-3 text-sm font-semibold uppercase tracking-[0.1em] transition-all duration-200",
+                        "search-setup-option rounded-xl border py-2 text-sm font-semibold uppercase tracking-[0.1em] transition-all duration-200",
                         active
                           ? "border-primary/50 bg-primary/10 text-foreground ring-1 ring-primary/25 [box-shadow:0_0_32px_oklch(0.55_0.24_25/18%)]"
                           : "border-white/[0.07] bg-white/[0.04] text-muted-foreground hover:border-primary/25 hover:text-foreground"
@@ -201,7 +201,7 @@ export function SearchSetup({ params }: { params: SearchSetupParams }) {
                   No weight classes for this selection.
                 </p>
               ) : (
-                <div className="mt-3 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto scrollbar-thin pr-0.5">
+                <div className="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto scrollbar-thin pr-0.5">
                   <WeightChip
                     active={weightClasses.length === 0}
                     onClick={() => setWeightClasses([])}
@@ -267,8 +267,8 @@ function SportOption({
       type="button"
       onClick={onSelect}
       className={cn(
-        "search-setup-option relative flex flex-col items-center gap-2.5 rounded-xl border transition-all duration-200",
-        wide ? "px-6 py-5" : "px-3 py-5",
+        "search-setup-option relative flex flex-col items-center gap-1.5 rounded-xl border transition-all duration-200",
+        wide ? "px-6 py-3" : "px-3 py-3.5",
         active
           ? "border-primary/50 bg-primary/10 ring-1 ring-primary/25 [box-shadow:0_0_32px_oklch(0.55_0.24_25/20%),inset_0_0_0_1px_oklch(0.55_0.24_25/12%)]"
           : "border-white/[0.07] bg-white/[0.04] hover:border-primary/25 hover:bg-primary/[0.07]"
@@ -276,7 +276,7 @@ function SportOption({
     >
       <span
         className={cn(
-          "font-display text-3xl leading-none tracking-widest",
+          "font-display text-2xl leading-none tracking-widest",
           active ? "text-primary" : "text-foreground/60"
         )}
       >
